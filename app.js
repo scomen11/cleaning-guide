@@ -527,24 +527,16 @@ function speak(text, onDone, btn) {
 
 function stopSpeaking() {
   speakToken++;
-  synth?.cancel();
+  // Cancelling when nothing is playing still touches the iPhone's audio session; skip it.
+  if (synth?.speaking || synth?.pending) synth.cancel();
   document.body.classList.remove('speaking');
   document.querySelectorAll('.speak.on').forEach((b) => b.classList.remove('on'));
 }
 
-function listJoin(xs) {
-  return xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')}, and ${xs[xs.length - 1]}`;
-}
-
 function answerText(results, query) {
+  // Only the top match is read; the others are on screen, and "next" reads them.
   if (!results.length) return `Sorry, I couldn't find ${query} in the guide.`;
-  const strong = results.filter((r) => r.strong);
-  let text = sayFor(results[0]);
-  if (strong.length > 1 && settings.detail !== 'name') {
-    const others = strong.slice(1, 4).map(shortName);
-    text += ` Also matched: ${listJoin(others)}.${handsFree ? ' Say next to hear it.' : ''}`;
-  }
-  return text;
+  return sayFor(results[0]);
 }
 
 // What "next" / "repeat" step through: the close matches, or everything if only one was close.
@@ -594,6 +586,8 @@ let autoRead = store.get('autoread', false);
 let idleSince = 0;
 let quickFails = 0;
 let listenTimer;
+let lastRec = null;  // the most recent recognizer, until it has fully ended
+let startToken = 0;
 let wakeLock = null;
 
 // Recent voice events, shown by tapping the "Clean Goose" title 5 times (for debugging on a phone).
@@ -655,8 +649,31 @@ function listen() {
   if (rec) cancelRec(rec);
   stopSpeaking();
 
+  // iOS holds the microphone until a session has fully ended; one started before then
+  // shows "Listening…" but hears nothing. So wait (briefly) for the last one to let go.
+  const token = ++startToken;
+  if (lastRec && !lastRec.ended) {
+    logVoice('waiting for previous session to end');
+    const begin = () => { if (token === startToken) startSession(); };
+    lastRec.whenEnded = begin;
+    setTimeout(begin, 800);
+    return;
+  }
+  startSession();
+}
+
+// iOS: record-and-play while listening, then back to normal playback, so an answer read
+// aloud doesn't leave the audio session unable to record next time.
+function audioMode(type) {
+  try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch { /* unsupported */ }
+}
+
+function startSession() {
+  startToken++;
+  audioMode('play-and-record');
   const r = new SR();
   rec = r;
+  lastRec = r;
   r.lang = /^en/i.test(navigator.language) ? navigator.language : 'en-US';
   r.interimResults = true;
   r.maxAlternatives = 5;
@@ -667,8 +684,9 @@ function listen() {
   let error = null;
   let heardAlts = null;
   let quietTimer;
+  const audio = [];
   const t0 = Date.now();
-  logVoice(`start${isIOS ? ' ios' : ''}${standalone ? ' app' : ''}`);
+  logVoice(`start${isIOS ? ' ios' : ''}${standalone ? ' app' : ''}${navigator.audioSession ? ` session=${navigator.audioSession.type}` : ''}`);
 
   // Ends the session exactly once, whichever comes first: a final result, the end
   // event, or one of the watchdogs below.
@@ -679,27 +697,29 @@ function listen() {
     clearTimeout(quietTimer);
     if (rec === r) rec = null;
     setListening(false);
-    logVoice(`end ${why}${error ? ` error=${error}` : ''}${heardAlts ? ` heard="${heardAlts[0]}"` : ''}`);
+    audioMode('auto');
+    logVoice(`end ${why}${error ? ` error=${error}` : ''} audio=[${audio.join(',') || 'none'}]${heardAlts ? ` heard="${heardAlts[0]}"` : ''}`);
     if (r.cancelled) return;
     // iOS often never marks results final; what it heard is still the answer.
     if (heardAlts) { handleUtterance(heardAlts); return; }
-    voiceFailed(error, Date.now() - t0);
+    voiceFailed(error, Date.now() - t0, started);
   };
-  const stopAndFinish = (why) => {
-    try { r.stop(); } catch { /* already stopped */ }
+  r.finish = finish;
+  // abort, not stop: we already have what we need, and abort releases the mic at once.
+  const endNow = (why) => {
+    try { r.abort(); } catch { /* already ended */ }
     finish(why);
   };
 
   const startWatch = setTimeout(() => {
     if (started) return;
     error = error || 'start-timeout';
-    try { r.abort(); } catch { /* ignore */ }
-    finish('no-start');
+    endNow('no-start');
   }, 8000);
   // After speech begins, a short silence means they're done talking.
   const armQuiet = (ms) => {
     clearTimeout(quietTimer);
-    quietTimer = setTimeout(() => stopAndFinish(heardAlts ? 'quiet' : 'silence'), ms);
+    quietTimer = setTimeout(() => endNow(heardAlts ? 'quiet' : 'silence'), ms);
   };
 
   r.onstart = () => {
@@ -709,6 +729,10 @@ function listen() {
     armQuiet(9000);
     setStatus(handsFree ? `Listening… <span class="hint">${handsFreeHint()}</span>` : 'Listening…');
   };
+  // Logged only: shows on a phone whether the mic delivered any sound at all.
+  r.onaudiostart = () => audio.push('audio');
+  r.onsoundstart = () => audio.push('sound');
+  r.onspeechstart = () => audio.push('speech');
   r.onresult = (e) => {
     if (done) return;
     const res = e.results[e.results.length - 1];
@@ -716,22 +740,27 @@ function listen() {
     const alts = Array.from(res).map((a) => a.transcript.trim()).filter(Boolean);
     if (e.results.length > 1) alts.unshift(heard);
     if (alts.length) heardAlts = alts;
-    if (res.isFinal) { stopAndFinish('final'); return; }
+    if (res.isFinal) { endNow('final'); return; }
     setStatus(`<span class="heard">“${esc(heard)}”</span>`);
     armQuiet(2000);
   };
   r.onerror = (e) => { error = e.error; logVoice(`error ${e.error}`); };
-  r.onend = () => finish('onend');
+  r.onend = () => {
+    r.ended = true;
+    r.whenEnded?.();
+    finish('onend');
+  };
 
   try {
     r.start();
   } catch (err) {
     error = `start-threw ${err?.name || ''}`.trim();
+    r.ended = true;
     finish('threw');
   }
 }
 
-function voiceFailed(error, elapsed) {
+function voiceFailed(error, elapsed, started) {
   const blocked = error === 'not-allowed' || error === 'service-not-allowed';
   const noStart = error === 'start-timeout' || error?.startsWith?.('start-threw');
   if ((blocked || noStart) && !voiceWorked) {
@@ -750,17 +779,19 @@ function voiceFailed(error, elapsed) {
     if (quickFails > 3) { stopHandsFree(); return setStatus('Voice stopped responding. Tap the mic to try again.', true); }
     return listenSoon(150);
   }
-  setStatus('');
+  // Silence: say so, rather than leaving the user wondering whether it was listening.
+  setStatus(started && (!error || error === 'no-speech') ? 'Didn’t catch that.<span class="hint">Tap the mic to try again.</span>' : '');
 }
 
 function cancelRec(r) {
   r.cancelled = true;
   try { r.abort(); } catch { /* ignore */ }
-  r.onend?.();
+  r.finish?.('cancel');
 }
 
 function stopListening() {
   clearTimeout(listenTimer);
+  startToken++;
   if (rec) cancelRec(rec);
   rec = null;
   setListening(false);
@@ -864,7 +895,7 @@ function startHandsFree() {
   document.body.classList.add('handsfree');
   keepAwake(true);
   setStatus(`Hands-free on <span class="hint">${handsFreeHint()}</span>`);
-  speak('Hands-free on. Say an item.', () => listenSoon(100));
+  speak('Hands-free on.', () => listenSoon(100));
 }
 
 function stopHandsFree() {

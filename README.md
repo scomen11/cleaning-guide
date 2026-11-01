@@ -7,7 +7,7 @@ Say or type an item, get its cleaning instructions. Content is transcribed from 
 - **Type or dictate** in the search box. Spelling doesn't need to be exact ("kite footies", "hakka", "jelly cat" all work).
 - **Mic button**: one tap, say the item, and the answer appears.
 - **Hands-free**: tap once. It listens, shows and **reads** the answer, then listens again.
-  Say **"next"** (other matches), **"repeat"**, or **"stop"**. The screen stays awake while it's on. It turns off after 3 quiet minutes or when you leave the app.
+  Only the top match is read; say **"next"** for the others, **"repeat"**, or **"stop"**. The screen stays awake while it's on. It turns off after 3 quiet minutes or when you leave the app.
 - **Read aloud**: when on, voice searches are also spoken. Every card has its own 🔊 button.
 - **Settings** (sliders icon, top right):
   - **Appearance**: Light, Dark or Auto (follows the phone).

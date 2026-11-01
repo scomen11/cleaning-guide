@@ -19,15 +19,22 @@ window.__heard = [];
 //   'nofinal' – iOS-style: results never marked final, then end
 //   'hang'    – iOS-style: results never final and no end event at all
 //   'flaky'   – every other start is refused with not-allowed (after the first)
+//   'busy'    – iOS-style: stop() doesn't release the mic (only abort() does, after 400ms),
+//               and a session started while another holds it "listens" but hears nothing
 window.__mode = new URLSearchParams(location.search).get('mode') || 'final';
 let starts = 0;
+let holder = null;  // the recognizer currently holding the mic ('busy' mode)
 class FakeRecognition {
   start() {
     const n = starts++;
     const mode = window.__mode;
+    const deaf = mode === 'busy' && holder && holder !== this;
+    if (mode === 'busy' && !deaf) holder = this;
     setTimeout(() => {
       if (mode === 'flaky' && n % 2 === 1) { this.onerror?.({ error: 'not-allowed' }); this.onend?.(); return; }
       this.onstart?.();
+      if (deaf) return;  // never hears anything; the app's own timeout ends it
+      this.onaudiostart?.();
       const alts = window.__say.shift();
       setTimeout(() => {
         if (!alts) { this.onerror?.({ error: 'no-speech' }); this.onend?.(); return; }
@@ -35,12 +42,18 @@ class FakeRecognition {
         const res = alts.map((t) => ({ transcript: t }));
         res.isFinal = mode === 'final' || mode === 'flaky';
         this.onresult?.({ results: [res] });
-        if (mode !== 'hang') setTimeout(() => this.onend?.(), mode === 'nofinal' ? 300 : 0);
+        if (mode !== 'hang' && mode !== 'busy') setTimeout(() => this.release(), mode === 'nofinal' ? 300 : 0);
       }, 60);
     }, 20);
   }
-  abort() { if (window.__mode !== 'hang') this.onend?.(); }
-  stop() { if (window.__mode !== 'hang') this.onend?.(); }
+  release() {
+    if (window.__mode === 'hang' || this.released) return;
+    this.released = true;
+    if (window.__mode === 'busy') setTimeout(() => { if (holder === this) holder = null; this.onend?.(); }, 400);
+    else this.onend?.();
+  }
+  abort() { this.release(); }
+  stop() { if (window.__mode !== 'busy') this.release(); }
 }
 // ?nosr simulates a browser with no voice recognition (e.g. an iPhone Home Screen app).
 if (location.search.includes('nosr')) delete window.webkitSpeechRecognition;

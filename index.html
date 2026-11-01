@@ -65,13 +65,23 @@
       </fieldset>
 
       <fieldset class="opt">
+        <legend>Reading speed</legend>
+        <div class="seg">
+          <label><input type="radio" name="rate" value="0.8"><span>Slower</span></label>
+          <label><input type="radio" name="rate" value="1"><span>Normal</span></label>
+          <label><input type="radio" name="rate" value="1.2"><span>Faster</span></label>
+          <label><input type="radio" name="rate" value="1.4"><span>Fastest</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="opt">
         <legend>Laundry: read</legend>
         <div class="seg">
           <label><input type="radio" name="focus" value="both"><span>Wash &amp; dry</span></label>
           <label><input type="radio" name="focus" value="wash"><span>Wash only</span></label>
           <label><input type="radio" name="focus" value="dry"><span>Dry only</span></label>
         </div>
-        <p class="opt-hint">Reads just the step you’re on. The screen still shows both.</p>
+        <p class="opt-hint">Reads just the step you’re on, without saying “wash” or “dry” each time. The screen still shows both.</p>
       </fieldset>
 
       <fieldset class="opt">
@@ -84,7 +94,7 @@
         <p class="opt-hint">Auto uses Clean Goose’s own on iPhone (the iPhone’s stops hearing after the first try) and the phone’s on Android. Clean Goose’s own downloads once (about 28 MB), then works offline.</p>
       </fieldset>
 
-      <p class="opt-hint">In hands-free you can also say “straightforward”, “just the name”, “everything”, “wash only”, “dry only” or “both”.</p>
+      <p class="opt-hint">You can also say these to the mic: “wash mode”, “dry mode”, “both”, “straightforward”, “just the name”, “everything”, “faster” or “slower”.</p>
 
       <details class="vlog">
         <summary>Voice log <span id="build"></span></summary>

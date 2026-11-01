@@ -1,6 +1,6 @@
 // Pages and code: network first (so a fix arrives on the next open), cache if offline or slow.
 // Fonts and images: cache first. Bump VERSION when shipping changes so old caches are cleared.
-const VERSION = 'v9';
+const VERSION = 'v10';
 const CACHE = `cleaning-guide-${VERSION}`;
 const ASSETS = [
   './',

@@ -18,7 +18,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
 
-const BUILD = 9;  // shown in Settings → Voice log; bump along with VERSION in sw.js
+const BUILD = 10;  // shown in Settings → Voice log; bump along with VERSION in sw.js
 
 const ITEM_BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -29,6 +29,7 @@ const settings = {
   theme: store.get('theme', 'auto'),   // auto | light | dark
   detail: store.get('detail', 'full'), // full | brief | name: how much an automatic answer reads aloud
   focus: store.get('focus', 'both'),   // both | wash | dry: which laundry step is read aloud
+  rate: store.get('rate', 1),          // read-aloud speed, one of RATES
   engine: store.get('engine', 'auto'), // auto | app | phone: whose speech recognition to use
 };
 
@@ -420,9 +421,12 @@ function forSpeech(t) {
 
 const dot = (s) => (s ? s.replace(/\.?$/, '.') : '');
 
-// The laundry steps to read, per the "Laundry: read" setting.
+// The laundry steps to read, per the "Laundry: read" setting, each with what to call it
+// out loud: "Wash: " when reading both, nothing when you've said which one you're on.
 function laundrySteps(it) {
-  return [['Wash', it.wash], ['Dry', it.dry]].filter(([label]) => settings.focus === 'both' || label.toLowerCase() === settings.focus);
+  return [['Wash', it.wash], ['Dry', it.dry]]
+    .filter(([label]) => settings.focus === 'both' || label.toLowerCase() === settings.focus)
+    .map(([label, c]) => [settings.focus === 'both' ? `${label}: ` : '', c, label]);
 }
 
 function speechFor(r) {
@@ -433,7 +437,7 @@ function speechFor(r) {
   const it = r.item;
   const sec = SECTIONS[it.section];
   if (sec.kind === 'laundry') {
-    return `${dot(itemTitle(it))} ${laundrySteps(it).map(([label, c]) => `${label}: ${dot(c.head)} ${dot(c.text)}`).join(' ')}`;
+    return `${dot(itemTitle(it))} ${laundrySteps(it).map(([say, c]) => `${say}${dot(c.head)} ${dot(c.text)}`).join(' ')}`;
   }
   if (sec.kind === 'maintenance') return `${sec.short}: ${dot(it.name)} ${dot(it.when)} ${dot(it.notes)}`;
   const phases = PHASES.map(([phase]) => {
@@ -470,11 +474,11 @@ function briefFor(r) {
   const sec = SECTIONS[it.section];
   const title = dot(itemTitle(it));
   if (sec.kind === 'laundry') {
-    return `${title} ${laundrySteps(it).map(([label, c]) => {
+    return `${title} ${laundrySteps(it).map(([say, c, label]) => {
       const first = c.text ? lowerFirst(c.text.split(/[.,;]\s*/)[0]) : '';
       // "Tumble dry low" says more than the dryer's "Delicate cycle" heading.
-      if (label === 'Dry' && c.tone !== 'no' && first) return `Dry: ${first}.`;
-      return `${label}: ${lowerFirst(c.head)}${first ? `, ${first}` : ''}.`;
+      if (label === 'Dry' && c.tone !== 'no' && first) return `${say}${first}.`;
+      return `${say}${lowerFirst(c.head)}${first ? `, ${first}` : ''}.`;
     }).join(' ')}`;
   }
   if (sec.kind === 'maintenance') return `${title} ${dot(it.when)}`;
@@ -518,12 +522,12 @@ function speak(text, onDone, btn) {
     const u = new SpeechSynthesisUtterance(chunks[i++]);
     if (voice) u.voice = voice;
     u.lang = voice?.lang || 'en-US';
-    u.rate = 1;
+    u.rate = settings.rate;
     u.onend = next;
     u.onerror = next;
     synth.speak(u);
     // Safari occasionally never fires onend.
-    watchdog = setTimeout(next, 2500 + u.text.length * 110);
+    watchdog = setTimeout(next, 2500 + (u.text.length * 110) / settings.rate);
   };
   document.body.classList.add('speaking');
   btn?.classList.add('on');
@@ -809,7 +813,7 @@ function showSetupProgress(p) {
 // reliable with noise and brand names than writing down whatever it hears.
 let phrasesSent = null;
 function sendPhrases() {
-  const commands = [CMD_STOP, CMD_REPEAT, CMD_NEXT, CMD_READ, ...CMD_SETTINGS.map(([re]) => re)].flatMap(phrasesOf);
+  const commands = [CMD_STOP, CMD_REPEAT, CMD_NEXT, CMD_READ, CMD_FASTER, CMD_SLOWER, ...CMD_SETTINGS.map(([re]) => re)].flatMap(phrasesOf);
   phrasesSent ??= stt.setPhrases(knownPhrases(commands));
   return phrasesSent;
 }
@@ -913,15 +917,26 @@ const CMD_STOP = /^(stop|stop listening|cancel|exit|quit|done|i m done|im done|t
 const CMD_REPEAT = /^(repeat|repeat that|again|say that again|say it again|what|pardon|come again|one more time)$/;
 const CMD_NEXT = /^(next|next one|the next one|more|other|another|what else|skip|other one)$/;
 const CMD_READ = /^(read|read it|read that|read it out|read it to me|read aloud|tell me|tell me more|more details|details|full details)$/;
+// Every way of asking for a laundry step: "wash", "wash mode", "switch to washing", "go to dry only"…
+function stepCommand(words) {
+  const said = ['', 'switch to ', 'go to ', 'change to ', 'just '].flatMap((pre) => words.flatMap((w) => ['', ' mode', ' only'].map((post) => pre + w + post)));
+  return new RegExp(`^(${said.join('|')})$`);
+}
+
 // Spoken settings changes: [pattern, setting, value, confirmation].
 const CMD_SETTINGS = [
-  [/^(wash only|washing only|just wash|just washing|wash mode|washing mode|washing)$/, 'focus', 'wash', 'Wash only.'],
-  [/^(dry only|drying only|just dry|just drying|dry mode|drying mode|drying)$/, 'focus', 'dry', 'Dry only.'],
-  [/^(both|wash and dry|washing and drying|both steps)$/, 'focus', 'both', 'Wash and dry.'],
+  [stepCommand(['wash', 'washing']), 'focus', 'wash', 'Wash mode.'],
+  [stepCommand(['dry', 'drying']), 'focus', 'dry', 'Dry mode.'],
+  [stepCommand(['both', 'both steps', 'wash and dry', 'washing and drying']), 'focus', 'both', 'Wash and dry.'],
   [/^(straightforward|straight forward|straightforward mode|straight forward mode|brief|brief mode|short|short mode|keep it short)$/, 'detail', 'brief', 'Straightforward.'],
   [/^(just the name|just the names|just names|names only|name only|names|quick|quick mode|list mode)$/, 'detail', 'name', 'Just the names.'],
   [/^(everything|read everything|full|full mode|all details|every detail)$/, 'detail', 'full', 'Reading everything.'],
 ];
+
+// Read-aloud speeds, slowest first; "faster" and "slower" step through them.
+const RATES = [0.8, 1, 1.2, 1.4];
+const CMD_FASTER = /^(faster|speak faster|talk faster|read faster|go faster|speed up|a bit faster)$/;
+const CMD_SLOWER = /^(slower|speak slower|talk slower|read slower|go slower|slow down|a bit slower)$/;
 
 function modeTag() {
   return [{ brief: 'Straightforward', name: 'Just the name' }[settings.detail], { wash: 'Wash only', dry: 'Dry only' }[settings.focus]]
@@ -942,6 +957,13 @@ function handleUtterance(alts) {
   if (CMD_STOP.test(n) && handsFree) {
     stopHandsFree();
     speak('Okay, hands-free off.');
+    return;
+  }
+  if (CMD_FASTER.test(n) || CMD_SLOWER.test(n)) {
+    const i = RATES.indexOf(settings.rate) + (CMD_FASTER.test(n) ? 1 : -1);
+    const edge = i < 0 || i >= RATES.length;
+    if (!edge) setSetting('rate', RATES[i]);
+    speak(edge ? `That's the ${i < 0 ? 'slowest' : 'fastest'}.` : 'Okay, like this.', after);
     return;
   }
   const setting = CMD_SETTINGS.find(([re]) => re.test(n));
@@ -1150,6 +1172,7 @@ function setSetting(key, value) {
   store.set(key, value);
   if (key === 'theme') applyTheme();
   if (key === 'engine') { refreshVoiceIn(); updateVoiceUi(); }
+  if (key === 'rate' && menuEl.open) speak('This is how fast answers are read.');
   syncMenu();
 }
 
@@ -1169,7 +1192,9 @@ $('#menu-btn').addEventListener('click', () => {
   history.pushState({ ...(history.state || {}), menu: true }, '');
 });
 menuEl.addEventListener('change', (e) => {
-  if (e.target.name in settings) setSetting(e.target.name, e.target.value);
+  if (!(e.target.name in settings)) return;
+  if (e.target.name === 'rate') unlockTts();
+  setSetting(e.target.name, e.target.name === 'rate' ? Number(e.target.value) : e.target.value);
 });
 menuEl.addEventListener('click', (e) => {
   // The dialog element itself is only hit on the backdrop around the sheet.

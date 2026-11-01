@@ -1,6 +1,6 @@
 // Offline-first: serve from cache instantly, refresh the cache in the background.
 // Bump VERSION when shipping changes so old caches are cleared.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `cleaning-guide-${VERSION}`;
 const ASSETS = [
   './',
@@ -13,6 +13,7 @@ const ASSETS = [
   'fonts/gilda-display.woff2',
   'fonts/lora.woff2',
   'fonts/lora-italic.woff2',
+  'icons/goose.svg',
   'icons/icon-192.png',
   'icons/icon-512.png',
   'icons/apple-touch-icon.png',

@@ -1,4 +1,4 @@
-# Cleaning Guide (PWA)
+# Goose Cleaning Guide (PWA)
 
 Say or type an item, get its cleaning instructions. Content is transcribed from `CLEANING.pdf`.
 
@@ -24,6 +24,9 @@ After editing, run the tests and bump `VERSION` in [`sw.js`](sw.js) so installed
 ```bash
 npm test
 ```
+
+## Icon
+The goose is drawn in [`tools/build-icons.mjs`](tools/build-icons.mjs). After changing it, run `npm install` once, then `npm run icons`.
 
 ## Run locally
 ```bash

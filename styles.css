@@ -111,10 +111,9 @@ main {
   background: var(--blue);
   border-radius: 999px 999px 0 0;
   margin: 10px auto 26px;
-  width: min(78%, 330px);
-  aspect-ratio: 330 / 300;
-  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-  padding: 0 12px 34px;
+  width: min(80%, 320px);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 30px 12px 30px;
   text-align: center;
 }
 .arch h1 {
@@ -122,6 +121,8 @@ main {
   text-transform: uppercase; letter-spacing: .01em;
   margin: 0;
 }
+.arch-goose { width: 46%; max-width: 150px; height: auto; margin-bottom: 8px; }
+.arch-kicker { display: block; font: italic 400 24px/1.1 var(--serif); text-transform: none; letter-spacing: 0; margin-bottom: 4px; }
 .divider { display: flex; align-items: center; gap: 6px; margin: 16px 0 10px; color: var(--ink); }
 .divider i { width: 56px; height: 1px; background: currentColor; position: relative; }
 .divider i:first-child::before, .divider i:last-child::after {

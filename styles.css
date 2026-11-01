@@ -121,8 +121,7 @@ main {
   text-transform: uppercase; letter-spacing: .01em;
   margin: 0;
 }
-.arch-goose { width: 46%; max-width: 150px; height: auto; margin-bottom: 8px; }
-.arch-kicker { display: block; font: italic 400 24px/1.1 var(--serif); text-transform: none; letter-spacing: 0; margin-bottom: 4px; }
+.arch-goose { width: 62%; max-width: 190px; height: auto; margin: 6px 0 14px; filter: drop-shadow(0 2px 6px rgba(60, 45, 20, .15)); }
 .divider { display: flex; align-items: center; gap: 6px; margin: 16px 0 10px; color: var(--ink); }
 .divider i { width: 56px; height: 1px; background: currentColor; position: relative; }
 .divider i:first-child::before, .divider i:last-child::after {

@@ -1,12 +1,12 @@
 {
-  "name": "Goose Cleaning Guide",
-  "short_name": "Goose Cleaning Guide",
+  "name": "Clean Goose",
+  "short_name": "Clean Goose",
   "description": "Say or type any item to get its cleaning instructions.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#FFFFFF",
+  "background_color": "#F6EBD2",
   "theme_color": "#EBF3F7",
   "icons": [
     {
@@ -22,7 +22,7 @@
       "purpose": "any"
     },
     {
-      "src": "icons/icon-512.png",
+      "src": "icons/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

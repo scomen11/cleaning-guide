@@ -1,4 +1,4 @@
-# Goose Cleaning Guide (PWA)
+# Clean Goose (PWA)
 
 Say or type an item, get its cleaning instructions. Content is transcribed from `CLEANING.pdf`.
 
@@ -26,7 +26,7 @@ npm test
 ```
 
 ## Icon
-The goose is drawn in [`tools/build-icons.mjs`](tools/build-icons.mjs). After changing it, run `npm install` once, then `npm run icons`.
+The illustration is [`icons/source/clean-goose.png`](icons/source/clean-goose.png). To use new art, replace that file (square PNG, about 1024px or larger) and run `npm run icons` (needs Python with Pillow and NumPy). Then bump `VERSION` in `sw.js`.
 
 ## Run locally
 ```bash

@@ -1,0 +1,9 @@
+{
+  "name": "cleaning-guide",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/search.test.js",
+    "serve": "python -m http.server 8080"
+  }
+}

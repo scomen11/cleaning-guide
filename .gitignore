@@ -1,0 +1,5 @@
+# Source document stays local; the app carries its content in data.js.
+CLEANING.pdf
+.claude/
+phone-qr.png
+node_modules/

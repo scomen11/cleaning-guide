@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voice test harness</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+<script type="module">
+// Fake speech engines so the voice flow can be driven without a microphone.
+// Queue what the "user says" in window.__say (arrays of alternatives); read window.__spoken.
+window.__say = [];
+window.__spoken = [];
+window.__heard = [];
+
+class FakeRecognition {
+  start() {
+    setTimeout(() => {
+      this.onstart?.();
+      const alts = window.__say.shift();
+      setTimeout(() => {
+        if (!alts) { this.onerror?.({ error: 'no-speech' }); this.onend?.(); return; }
+        window.__heard.push(alts[0]);
+        const res = alts.map((t) => ({ transcript: t }));
+        res.isFinal = true;
+        this.onresult?.({ results: [res] });
+        this.onend?.();
+      }, 60);
+    }, 20);
+  }
+  abort() { this.onend?.(); }
+  stop() { this.onend?.(); }
+}
+// ?nosr simulates a browser with no voice recognition (e.g. an iPhone Home Screen app).
+if (location.search.includes('nosr')) delete window.webkitSpeechRecognition;
+else window.SpeechRecognition = FakeRecognition;
+
+const fakeSynth = {
+  speaking: false, pending: false,
+  speak(u) { if (u.text.trim()) window.__spoken.push(u.text); setTimeout(() => u.onend?.(), 5); },
+  cancel() {}, getVoices: () => [], addEventListener() {},
+};
+Object.defineProperty(window, 'speechSynthesis', { value: fakeSynth, configurable: true });
+
+const html = await (await fetch('../index.html')).text();
+document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;
+localStorage.clear();
+await import('../app.js');
+window.__ready = true;
+</script>
+</body>
+</html>

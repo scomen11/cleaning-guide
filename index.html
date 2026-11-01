@@ -17,10 +17,12 @@
   <link rel="preload" href="fonts/lora.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="fonts/gilda-display.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="styles.css">
+  <script>/* Apply a chosen light/dark theme before first paint. */try{var t=JSON.parse(localStorage.getItem('theme'));if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
   <script type="module" src="app.js"></script>
 </head>
 <body>
   <header class="top">
+   <div class="top-in">
     <form class="searchbar" id="searchform" role="search" autocomplete="off">
       <svg class="searchbar-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
       <input id="q" type="search" placeholder="Item or brand…" autocomplete="off" autocorrect="off"
@@ -29,7 +31,52 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
       </button>
     </form>
+    <button type="button" id="menu-btn" class="menu-btn" aria-label="Settings" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+    </button>
+   </div>
   </header>
+
+  <dialog id="menu" class="sheet" aria-labelledby="menu-title">
+    <div class="sheet-in">
+      <div class="sheet-h">
+        <h2 id="menu-title">Settings</h2>
+        <button type="button" class="sheet-x" data-close aria-label="Close settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+
+      <fieldset class="opt">
+        <legend>Appearance</legend>
+        <div class="seg">
+          <label><input type="radio" name="theme" value="light"><span>Light</span></label>
+          <label><input type="radio" name="theme" value="dark"><span>Dark</span></label>
+          <label><input type="radio" name="theme" value="auto"><span>Auto</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="opt">
+        <legend>Read aloud</legend>
+        <div class="choices">
+          <label><input type="radio" name="detail" value="full"><span><b>Everything</b><small>Every detail on the card.</small></span></label>
+          <label><input type="radio" name="detail" value="brief"><span><b>Straightforward</b><small>Just the gist: “Wash: delicate cycle, cold. Dry: tumble dry low.”</small></span></label>
+          <label><input type="radio" name="detail" value="name"><span><b>Just the name</b><small>Confirms what it found and, in hands-free, listens again right away. Quickest for a pile of items. Say “read it” for the details.</small></span></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="opt">
+        <legend>Laundry: read</legend>
+        <div class="seg">
+          <label><input type="radio" name="focus" value="both"><span>Wash &amp; dry</span></label>
+          <label><input type="radio" name="focus" value="wash"><span>Wash only</span></label>
+          <label><input type="radio" name="focus" value="dry"><span>Dry only</span></label>
+        </div>
+        <p class="opt-hint">Reads just the step you’re on. The screen still shows both.</p>
+      </fieldset>
+
+      <p class="opt-hint">In hands-free you can also say “straightforward”, “just the name”, “everything”, “wash only”, “dry only” or “both”.</p>
+    </div>
+  </dialog>
 
   <main id="main">
     <section id="home">

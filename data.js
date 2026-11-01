@@ -69,124 +69,194 @@ export const SECTIONS = {
   'dw-maint': { title: 'Dishwasher Maintenance', group: 'Maintenance', kind: 'maintenance', short: 'Dishwasher' },
 };
 
+// A PDF row often lists several products that share one set of steps. Each product gets
+// its own entry (so "Jellycat rattle" doesn't also bring up the Mon Ami lamb): `each`
+// copies the shared steps onto every product and adds the shared search terms to its own.
+function each(shared, items) {
+  return items.map((it) => ({ ...shared, ...it, aliases: [...(it.aliases || []), ...(shared.aliases || [])] }));
+}
+
+const DELICATE_COLD = { tone: 'ok', head: 'Delicate cycle', text: 'Cold, make sure all fasteners are closed' };
+const DELICATES_BAG = { tone: 'ok', head: 'Delicate cycle', text: 'Cold, use delicates bag' };
+const TUMBLE_LOW = { tone: 'ok', head: 'Delicate cycle', text: 'Tumble dry low' };
+const NO_DRYER = { tone: 'no', head: 'No dryer', text: 'Hang or lay flat' };
+
+const FOOTIES = ['footie', 'footed pajamas', 'pajamas', 'pjs', 'pyjamas', 'jammies', 'sleeper', 'sleepsuit'];
+const ONESIES = ['onesie', 'bodysuit', 'body suit', 'romper'];
+
 export const ITEMS = [
   // ───────── CLOTHING ─────────
-  {
-    id: 'kyte', section: 'clothing', brand: 'Kyte',
-    name: 'Footies, onesies, scratch mittens, and pants',
+  ...each({
+    section: 'clothing', brand: 'Kyte',
     wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, inside out, make sure all fasteners are closed, use delicates bag' },
-    dry: { tone: 'no', head: 'No dryer', text: 'Hang or lay flat' },
-    aliases: ['kite', 'kyte baby', 'kite baby', 'kight', 'pajamas', 'pjs', 'pyjamas', 'jammies', 'sleeper', 'footie', 'onesie', 'bodysuit', 'mittens', 'scratch mitts', 'pants', 'leggings', 'bamboo'],
-  },
-  {
-    id: 'magnetic-me', section: 'clothing', brand: 'Magnetic Me',
-    name: 'Footies and fleece pram',
+    dry: NO_DRYER,
+    aliases: ['kyte', 'kite', 'kyte baby', 'kite baby', 'kight', 'bamboo'],
+  }, [
+    { id: 'kyte-footies', name: 'Footies', aliases: FOOTIES },
+    { id: 'kyte-onesies', name: 'Onesies', aliases: ONESIES },
+    { id: 'kyte-mittens', name: 'Scratch mittens', aliases: ['mittens', 'mitten', 'mitts', 'scratch mitts', 'hand covers'] },
+    { id: 'kyte-pants', name: 'Pants', aliases: ['pants', 'leggings', 'trousers', 'joggers', 'bottoms'] },
+  ]),
+  ...each({
+    section: 'clothing', brand: 'Magnetic Me',
     wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, make sure all fasteners are closed, use delicates bag' },
     dry: { tone: 'caution', head: 'Delicate cycle', text: 'Tumble dry low for a max of 30 min. Air-dry if still damp' },
-    aliases: ['magnetic', 'magnetics', 'magnet me', 'magnet', 'magnetic mi', 'magnets', 'pram suit', 'pram', 'fleece', 'bunting', 'snowsuit', 'pajamas', 'pjs', 'sleeper', 'footie'],
-  },
-  {
-    id: 'mori-carters', section: 'clothing', brand: 'Mori, Carter’s, Gunamuna, etc.',
-    name: 'Footies and onesies',
-    wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, make sure all fasteners are closed, inside out for Carter’s footies' },
-    dry: { tone: 'ok', head: 'Delicate cycle', text: 'Tumble dry low' },
-    aliases: ['mori', 'maury', 'morey', 'mory', 'moree', 'carters', 'carter', 'cartas', 'gunamuna', 'guna muna', 'gunna muna', 'goona muna', 'gona muna', 'other brands', 'onesie', 'bodysuit', 'footie', 'pajamas', 'pjs', 'sleeper'],
-  },
+    aliases: ['magnetic', 'magnetics', 'magnet me', 'magnet', 'magnetic mi', 'magnets'],
+  }, [
+    { id: 'magnetic-me-footies', name: 'Footies', aliases: FOOTIES },
+    { id: 'magnetic-me-pram', name: 'Fleece pram', aliases: ['pram suit', 'pram', 'fleece', 'bunting', 'snowsuit', 'snow suit'] },
+  ]),
+  ...each({
+    section: 'clothing', brand: 'Mori', wash: DELICATE_COLD, dry: TUMBLE_LOW,
+    aliases: ['mori', 'maury', 'morey', 'mory', 'moree'],
+  }, [
+    { id: 'mori-footies', name: 'Footies', aliases: FOOTIES },
+    { id: 'mori-onesies', name: 'Onesies', aliases: ONESIES },
+  ]),
+  ...each({
+    section: 'clothing', brand: 'Carter’s', wash: DELICATE_COLD, dry: TUMBLE_LOW,
+    aliases: ['carters', 'carter', 'cartas'],
+  }, [
+    {
+      id: 'carters-footies', name: 'Footies', aliases: FOOTIES,
+      wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, inside out, make sure all fasteners are closed' },
+    },
+    { id: 'carters-onesies', name: 'Onesies', aliases: ONESIES },
+  ]),
+  ...each({
+    section: 'clothing', brand: 'Gunamuna', wash: DELICATE_COLD, dry: TUMBLE_LOW,
+    aliases: ['gunamuna', 'guna muna', 'gunna muna', 'goona muna', 'gona muna'],
+  }, [
+    { id: 'gunamuna-footies', name: 'Footies', aliases: FOOTIES },
+    { id: 'gunamuna-onesies', name: 'Onesies', aliases: ONESIES },
+  ]),
+  ...each({
+    section: 'clothing', brand: 'Other brands', wash: DELICATE_COLD, dry: TUMBLE_LOW,
+    aliases: ['other brands', 'other brand', 'any brand', 'generic'],
+  }, [
+    { id: 'other-footies', name: 'Footies', short: 'Footies, other brands', aliases: FOOTIES },
+    { id: 'other-onesies', name: 'Onesies', short: 'Onesies, other brands', aliases: ONESIES },
+  ]),
 
   // ───────── ACCESSORIES ─────────
-  {
-    id: 'bombas-zutano', section: 'accessories', brand: 'Bombas, Zutano',
-    name: 'Socks and booties',
-    wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, make sure all fasteners are closed' },
-    dry: { tone: 'ok', head: 'Delicate cycle', text: 'Tumble dry low' },
-    aliases: ['bombas', 'bomba', 'bombers', 'bambas', 'zutano', 'zootano', 'zutanos', 'sutano', 'socks', 'sock', 'booties', 'bootie', 'slippers', 'shoes'],
-  },
-  {
-    id: '7am-cooper-pearl', section: 'accessories', brand: '7AM, Cooper Pearl',
-    name: 'Fuzzy winter hats and lightweight top knot hat',
-    wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, 7AM hats inside out' },
-    dry: { tone: 'ok', head: 'Delicate cycle', text: 'Tumble dry low' },
-    aliases: ['7am', '7 am', 'seven am', 'seven a m', 'cooper pearl', 'cooper', 'pearl', 'hat', 'hats', 'beanie', 'winter hat', 'fuzzy hat', 'top knot', 'topknot', 'knot hat'],
-  },
+  ...each({ section: 'accessories', wash: DELICATE_COLD, dry: TUMBLE_LOW }, [
+    { id: 'bombas-socks', brand: 'Bombas', name: 'Socks', aliases: ['bombas', 'bomba', 'bombers', 'bambas', 'socks', 'sock'] },
+    { id: 'zutano-booties', brand: 'Zutano', name: 'Booties', aliases: ['zutano', 'zootano', 'zutanos', 'sutano', 'booties', 'bootie', 'slippers', 'shoes'] },
+  ]),
+  ...each({ section: 'accessories', dry: TUMBLE_LOW, aliases: ['hat', 'hats'] }, [
+    {
+      id: '7am-hat', brand: '7AM', name: 'Fuzzy winter hat',
+      wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, inside out' },
+      aliases: ['7am', '7 am', 'seven am', 'seven a m', 'beanie', 'winter hat', 'fuzzy hat', 'warm hat'],
+    },
+    {
+      id: 'cooper-pearl-hat', brand: 'Cooper Pearl', name: 'Lightweight top knot hat',
+      wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold' },
+      aliases: ['cooper pearl', 'cooper', 'pearl', 'top knot', 'topknot', 'knot hat'],
+    },
+  ]),
   {
     id: 'domani', section: 'accessories', brand: 'Domani Home',
     name: 'Cotton bonnet',
     wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold' },
-    dry: { tone: 'no', head: 'No dryer', text: 'Hang or lay flat' },
+    dry: NO_DRYER,
     aliases: ['domani', 'domani home', 'domini', 'dominy', 'doe mani', 'bonnet', 'bonet', 'cotton hat', 'sun hat', 'hat'],
   },
   {
-    id: 'hand-knit', section: 'accessories', brand: 'Hand Knit Items',
+    // A rule for anything hand-knit rather than a list of products, so it stays one entry.
+    id: 'hand-knit', section: 'accessories', brand: 'Hand Knit Items', short: 'Hand-knit items',
     name: 'Leg warmers, sweaters, hats, etc.',
     wash: { tone: 'no', head: 'Handwash only', text: '' },
-    dry: { tone: 'no', head: 'No dryer', text: 'Hang or lay flat' },
+    dry: NO_DRYER,
     aliases: ['knit', 'knitted', 'hand knit', 'handknit', 'hand knitted', 'leg warmers', 'legwarmers', 'sweater', 'cardigan', 'wool', 'handmade', 'hat', 'hats', 'beanie'],
   },
 
   // ───────── LINENS ─────────
-  {
-    id: 'swaddles', section: 'linens',
-    name: 'Swaddles',
-    wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, make sure all fasteners are closed, HALO swaddle inside out' },
-    dry: { tone: 'ok', head: 'Delicate cycle', text: 'Tumble dry low' },
-    aliases: ['swaddle', 'swaddles', 'halo', 'halo swaddle', 'hello swaddle', 'sleep sack', 'sleepsack', 'swaddle blanket', 'muslin'],
-  },
-  {
-    id: 'bedding', section: 'linens',
-    name: 'Crib mattress cover, nursing pillow cover, changing pad cover, crib/bassinet sheets, hooded towels, washcloths, burp cloths, and bibs',
-    wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, make sure all fasteners are closed' },
-    dry: { tone: 'ok', head: 'Delicate cycle', text: 'Tumble dry low' },
-    aliases: ['sheet', 'sheets', 'crib sheet', 'bassinet sheet', 'fitted sheet', 'mattress cover', 'mattress protector', 'nursing pillow', 'boppy', 'feeding pillow', 'changing pad cover', 'towel', 'hooded towel', 'bath towel', 'washcloth', 'wash cloth', 'burp cloth', 'burp rag', 'burp', 'bib', 'bedding'],
-  },
-  {
-    id: 'solly', section: 'linens',
-    name: 'Solly soft fabric baby carrier and stroller/carrier blankets',
-    wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, use delicates bag' },
-    dry: { tone: 'ok', head: 'Delicate cycle', text: 'Tumble dry low' },
-    aliases: ['solly', 'solly baby', 'sally', 'soli', 'solley', 'solly wrap', 'wrap', 'baby wrap', 'soft carrier', 'fabric carrier', 'stroller blanket', 'carrier blanket', 'blanket'],
-  },
-  {
-    id: 'car-seat', section: 'linens',
-    name: 'Car seat/stroller removable fabric, LÍLLÉbaby carrier, BabyBjörn bouncer cover',
-    wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, use delicates bag' },
-    dry: { tone: 'no', head: 'No dryer', text: 'Hang or lay flat' },
-    aliases: ['car seat', 'carseat', 'car seat cover', 'stroller', 'stroller fabric', 'stroller liner', 'seat cover', 'canopy', 'lillebaby', 'lille baby', 'lilly baby', 'lily baby', 'lillie baby', 'lilibaby', 'carrier', 'baby bjorn', 'babybjorn', 'bjorn', 'byorn', 'baby byorn', 'bouncer', 'bouncer cover', 'bouncy seat'],
-  },
+  ...each({ section: 'linens', dry: TUMBLE_LOW }, [
+    {
+      id: 'halo-swaddle', brand: 'HALO', name: 'Swaddle',
+      wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, inside out, make sure all fasteners are closed' },
+      aliases: ['halo', 'hello', 'halo swaddle', 'hello swaddle', 'halo sleep sack', 'sleep sack', 'sleepsack', 'swaddle'],
+    },
+    {
+      id: 'swaddles', name: 'Other swaddles', wash: DELICATE_COLD,
+      aliases: ['swaddle', 'swaddles', 'swaddle blanket', 'muslin', 'muslin swaddle', 'sleep sack'],
+    },
+  ]),
+  ...each({ section: 'linens', wash: DELICATE_COLD, dry: TUMBLE_LOW, aliases: ['bedding'] }, [
+    { id: 'crib-mattress-cover', name: 'Crib mattress cover', aliases: ['mattress cover', 'mattress protector', 'mattress pad', 'crib mattress'] },
+    { id: 'nursing-pillow-cover', name: 'Nursing pillow cover', aliases: ['nursing pillow', 'boppy', 'feeding pillow', 'pillow cover', 'pillow'] },
+    { id: 'changing-pad-cover', name: 'Changing pad cover', aliases: ['changing pad cover', 'change pad cover', 'changing cover', 'changing mat cover'] },
+    { id: 'crib-sheets', name: 'Crib/bassinet sheets', aliases: ['sheet', 'sheets', 'crib sheet', 'bassinet sheet', 'fitted sheet', 'bassinet', 'crib'] },
+    { id: 'hooded-towels', name: 'Hooded towels', aliases: ['towel', 'towels', 'hooded towel', 'bath towel'] },
+    { id: 'washcloths', name: 'Washcloths', aliases: ['washcloth', 'wash cloth', 'face cloth', 'flannel'] },
+    { id: 'burp-cloths', name: 'Burp cloths', aliases: ['burp cloth', 'burp rag', 'burp', 'burping cloth'] },
+    { id: 'bibs', name: 'Bibs', aliases: ['bib', 'drool bib', 'bandana bib'] },
+  ]),
+  ...each({ section: 'linens', wash: DELICATES_BAG, dry: TUMBLE_LOW }, [
+    {
+      id: 'solly', brand: 'Solly Baby', name: 'Soft fabric baby carrier',
+      aliases: ['solly', 'solly baby', 'sally', 'soli', 'solley', 'solly wrap', 'wrap', 'baby wrap', 'soft carrier', 'fabric carrier', 'carrier'],
+    },
+    {
+      id: 'stroller-blankets', name: 'Stroller/carrier blankets',
+      aliases: ['stroller blanket', 'carrier blanket', 'blanket', 'blankets', 'pram blanket'],
+    },
+  ]),
+  ...each({ section: 'linens', wash: DELICATES_BAG, dry: NO_DRYER }, [
+    { id: 'car-seat', name: 'Car seat removable fabric', aliases: ['car seat', 'carseat', 'car seat cover', 'car seat fabric', 'seat cover', 'infant seat', 'car seat insert'] },
+    { id: 'stroller-fabric', name: 'Stroller removable fabric', aliases: ['stroller', 'stroller fabric', 'stroller liner', 'stroller seat', 'canopy', 'sun canopy', 'pushchair', 'buggy'] },
+    {
+      id: 'lillebaby', brand: 'LÍLLÉbaby', name: 'Carrier',
+      aliases: ['lillebaby', 'lille baby', 'lilly baby', 'lily baby', 'lillie baby', 'lilibaby', 'carrier', 'baby carrier'],
+    },
+    {
+      id: 'babybjorn', brand: 'BabyBjörn', name: 'Bouncer cover',
+      aliases: ['baby bjorn', 'babybjorn', 'bjorn', 'byorn', 'baby byorn', 'bouncer', 'bouncer cover', 'bouncy seat', 'bouncer seat'],
+    },
+  ]),
   {
     id: 'lily-pad', section: 'linens',
     name: 'Lily pad play mat',
     wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold' },
-    dry: { tone: 'no', head: 'No dryer', text: 'Hang or lay flat' },
+    dry: NO_DRYER,
     aliases: ['lily pad', 'lilypad', 'lilly pad', 'lillypad', 'play mat', 'playmat', 'activity mat', 'play gym', 'tummy time mat', 'mat'],
   },
 
   // ───────── TOYS & COMFORT ─────────
-  {
-    id: 'thumbie-otter', section: 'toys',
-    name: 'Bunny thumbie, snuggle otter',
-    wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, use delicates bag, remove electronics from snuggle otter' },
-    dry: { tone: 'ok', head: 'Delicate cycle', text: 'Tumble dry low' },
-    aliases: ['thumbie', 'thumby', 'thumbee', 'thumbey', 'bunny thumbie', 'snuggle otter', 'otter', 'sleep otter', 'lovey', 'heartbeat', 'bunny'],
-  },
-  {
-    id: 'spot-clean-plush', section: 'toys',
-    name: 'Soft Jellycat rattles (bear and bunny), Mon Ami lamb, Cuddle+Kind baby daisy and bunny',
-    wash: { tone: 'no', head: 'Spot clean only', text: '' },
-    dry: { tone: 'no', head: 'No dryer', text: 'Hang or lay flat' },
-    aliases: ['jellycat', 'jelly cat', 'jelly', 'jellycats', 'rattle', 'bear', 'teddy', 'bunny', 'mon ami', 'monami', 'mon amie', 'mon army', 'lamb', 'sheep', 'cuddle and kind', 'cuddle kind', 'cuddle+kind', 'daisy', 'doll', 'stuffed animal', 'plush', 'stuffy', 'soft toy'],
-  },
+  ...each({ section: 'toys', dry: TUMBLE_LOW, aliases: ['lovey'] }, [
+    {
+      id: 'bunny-thumbie', name: 'Bunny thumbie', wash: DELICATES_BAG,
+      aliases: ['thumbie', 'thumby', 'thumbee', 'thumbey', 'bunny thumbie', 'bunny', 'comforter'],
+    },
+    {
+      id: 'snuggle-otter', name: 'Snuggle otter',
+      wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, use delicates bag, remove electronics' },
+      aliases: ['snuggle otter', 'otter', 'sleep otter', 'heartbeat', 'sleep aid'],
+    },
+  ]),
+  ...each({
+    section: 'toys', wash: { tone: 'no', head: 'Spot clean only', text: '' }, dry: NO_DRYER,
+    aliases: ['plush', 'stuffed animal', 'stuffy', 'soft toy', 'spot clean'],
+  }, [
+    { id: 'jellycat-bear', brand: 'Jellycat', name: 'Soft bear rattle', aliases: ['jellycat', 'jelly cat', 'jelly', 'jellycats', 'rattle', 'bear', 'teddy', 'teddy bear', 'bear rattle'] },
+    { id: 'jellycat-bunny', brand: 'Jellycat', name: 'Soft bunny rattle', aliases: ['jellycat', 'jelly cat', 'jelly', 'jellycats', 'rattle', 'bunny', 'bunny rattle', 'rabbit'] },
+    { id: 'mon-ami-lamb', brand: 'Mon Ami', name: 'Lamb', aliases: ['mon ami', 'monami', 'mon amie', 'mon army', 'lamb', 'sheep', 'lamby'] },
+    { id: 'cuddle-kind-daisy', brand: 'Cuddle+Kind', name: 'Baby daisy', aliases: ['cuddle and kind', 'cuddle kind', 'cuddle n kind', 'daisy', 'doll', 'baby doll', 'knit doll'] },
+    { id: 'cuddle-kind-bunny', brand: 'Cuddle+Kind', name: 'Bunny', aliases: ['cuddle and kind', 'cuddle kind', 'cuddle n kind', 'bunny', 'bunny doll', 'rabbit'] },
+  ]),
   {
     id: 'lorena-canal', section: 'toys',
     name: 'Lorena Canal fabric rattles',
-    wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, use delicates bag' },
-    dry: { tone: 'no', head: 'No dryer', text: 'Hang or lay flat' },
+    wash: DELICATES_BAG,
+    dry: NO_DRYER,
     aliases: ['lorena canal', 'lorena', 'lorenna', 'canal', 'fabric rattle', 'rattle', 'soft rattle'],
   },
   {
     id: 'handmade-toys', section: 'toys',
     name: 'Handmade toys',
     wash: { tone: 'no', head: 'Handwash only', text: '' },
-    dry: { tone: 'no', head: 'No dryer', text: 'Hang or lay flat' },
+    dry: NO_DRYER,
     aliases: ['handmade', 'hand made', 'homemade', 'crochet', 'crocheted', 'knit toy', 'toy', 'toys'],
   },
 
@@ -268,15 +338,17 @@ export const ITEMS = [
     ],
     aliases: ['haakaa', 'haaka', 'hakka', 'haka', 'hacka', 'hakaa', 'haakka', 'hockey', 'ladybug', 'lady bug', 'milk collector', 'collector', 'milk catcher', 'silicone pump'],
   },
-  {
-    id: 'frigg', section: 'boil',
-    name: 'FRIGG rubber and silicone pacifiers and teethers',
+  ...each({
+    section: 'boil', sub: 'Rubber and silicone',
     methods: [
       { section: 'handwash', notes: 'Replace after 1–2 months or in case of any wear' },
       { section: 'boil', how: 'Pour boiling water in a bowl and let it soak for 5 min.', notes: 'Replace after 1–2 months or in case of any wear' },
     ],
-    aliases: ['frigg', 'frig', 'fridge', 'frigge', 'frigs', 'friggs', 'pacifier', 'pacifiers', 'paci', 'pacis', 'binky', 'binkies', 'dummy', 'soother', 'teether', 'teethers', 'teething', 'rubber', 'nuk'],
-  },
+    aliases: ['frigg', 'frig', 'fridge', 'frigge', 'frigs', 'friggs', 'rubber'],
+  }, [
+    { id: 'frigg-pacifiers', name: 'FRIGG pacifiers', aliases: ['pacifier', 'paci', 'pacis', 'binky', 'binkies', 'dummy', 'soother', 'nuk'] },
+    { id: 'frigg-teethers', name: 'FRIGG teethers', aliases: ['teether', 'teething', 'teething toy', 'teething ring'] },
+  ]),
   {
     id: 'bath-items', section: 'handwash',
     name: 'Bath items',
@@ -301,12 +373,10 @@ export const ITEMS = [
     methods: [{ section: 'handwash', notes: 'Wipe with soapy water after messes' }],
     aliases: ['changing pad', 'change pad', 'changing mat', 'change mat', 'vinyl', 'changing table', 'diaper changing pad', 'keekaroo'],
   },
-  {
-    id: 'wipes-pail', section: 'handwash',
-    name: 'Wipe dispensers and diaper pail',
-    methods: [{ section: 'handwash', notes: 'Wipe weekly' }],
-    aliases: ['wipe dispenser', 'wipes', 'wipes dispenser', 'wipes holder', 'wipe warmer', 'diaper pail', 'diaper bin', 'diaper can', 'ubbi', 'pail', 'diaper genie', 'trash can'],
-  },
+  ...each({ section: 'handwash', methods: [{ section: 'handwash', notes: 'Wipe weekly' }] }, [
+    { id: 'wipe-dispensers', name: 'Wipe dispensers', aliases: ['wipe dispenser', 'wipes', 'wipes dispenser', 'wipes holder', 'wipe warmer', 'wipes case'] },
+    { id: 'diaper-pail', name: 'Diaper pail', aliases: ['diaper pail', 'diaper bin', 'diaper can', 'ubbi', 'pail', 'diaper genie', 'trash can', 'nappy bin'] },
+  ]),
   {
     id: 'nosefrida', section: 'health',
     name: 'NoseFrida',

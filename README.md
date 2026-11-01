@@ -9,6 +9,12 @@ Say or type an item, get its cleaning instructions. Content is transcribed from 
 - **Hands-free**: tap once. It listens, shows and **reads** the answer, then listens again.
   Say **"next"** (other matches), **"repeat"**, or **"stop"**. The screen stays awake while it's on. It turns off after 3 quiet minutes or when you leave the app.
 - **Read aloud**: when on, voice searches are also spoken. Every card has its own 🔊 button.
+- **Settings** (sliders icon, top right):
+  - **Appearance**: Light, Dark or Auto (follows the phone).
+  - **Read aloud**: *Everything*, *Straightforward* (just the gist, e.g. "Wash: delicate cycle, cold. Dry: tumble dry low.") or *Just the name* (confirms the match and, in hands-free, listens again right away; say "read it" for details). The screen always shows everything.
+  - **Laundry: read**: Wash & dry, Wash only or Dry only.
+  - In hands-free you can also say these: "straightforward", "just the name", "everything", "wash only", "dry only", "both".
+- **Back**: the phone's back swipe steps back through previous searches and sections. It doesn't close the app.
 
 ### iPhone note
 iOS only allows in-page voice recognition in **Safari tabs**, not in apps added to the Home Screen.
@@ -19,6 +25,7 @@ Android (Chrome) supports everything, including from the home screen.
 
 ## Edit the content
 All instructions live in [`data.js`](data.js). Search terms, nicknames and likely voice mishearings for each item go in its `aliases` list.
+When several products share the same steps, give each its own entry with the `each(shared, [...])` helper, so a search for one doesn't show the others.
 After editing, run the tests and bump `VERSION` in [`sw.js`](sw.js) so installed copies update:
 
 ```bash

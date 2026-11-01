@@ -19,6 +19,13 @@ const store = {
 const ITEM_BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const lowerFirst = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+
+const settings = {
+  theme: store.get('theme', 'auto'),   // auto | light | dark
+  detail: store.get('detail', 'full'), // full | brief | name: how much an automatic answer reads aloud
+  focus: store.get('focus', 'both'),   // both | wash | dry: which laundry step is read aloud
+};
 
 const ICON = {
   speaker: '<svg viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg>',
@@ -174,11 +181,17 @@ function cardFor(r, q, key, inBrowse) {
   return feedingCard(r.item, q, key);
 }
 
-function shortName(r) {
-  if (r.type === 'section') return SECTIONS[r.sectionId].title;
-  const it = r.item;
-  if (it.brand) return it.brand.replace(/, etc\.$/, '');
+// One line naming an item: recent chips, "also matched" lists, and the name-only read-aloud.
+function itemTitle(it) {
+  if (it.short) return it.short;
+  if (it.brand) return `${it.brand} ${lowerFirst(it.name)}`;
+  const sec = SECTIONS[it.section];
+  if (sec.kind === 'maintenance') return `${it.name.replace(/\s*\(.*\)/, '')} (${sec.short.toLowerCase()})`;
   return it.name.split(/,| and /)[0];
+}
+
+function shortName(r) {
+  return r.type === 'section' ? SECTIONS[r.sectionId].title : itemTitle(r.item);
 }
 
 function rowFor(r, key) {
@@ -263,9 +276,9 @@ function showSection(secId, push = true) {
   homeEl.hidden = true;
   resultsEl.hidden = false;
   resultsEl.innerHTML = `
-    <div class="results-meta"><button type="button" class="back" data-home>${ICON.back}All sections</button><span>${esc(sec.group)}</span></div>
+    <div class="results-meta"><button type="button" class="back" data-back>${ICON.back}Back</button><span>${esc(sec.group)}</span></div>
     ${results.map((r, i) => cardFor(r, '', i, true)).join('')}`;
-  if (push) history.pushState({ section: secId }, '', `#${secId}`);
+  if (push) go({ section: secId });
   window.scrollTo(0, 0);
 }
 
@@ -306,7 +319,7 @@ function renderRecents() {
     return `<button type="button" class="chip" data-item="${id}">${esc(shortName({ type: 'item', item: it }))}</button>`;
   }).join('');
 }
-function showItem(id) {
+function showItem(id, push = true) {
   const it = ITEM_BY_ID[id];
   const label = shortName({ type: 'item', item: it });
   input.value = label;
@@ -314,7 +327,45 @@ function showItem(id) {
   // Make sure the tapped item leads, even if its short name is shared.
   const rest = results.filter((r) => r.id !== id);
   renderResults(label, [{ type: 'item', id, item: it, strong: true, score: 9 }, ...rest.map((r) => ({ ...r, strong: false }))]);
+  if (push) go({ q: label, item: id });
   window.scrollTo(0, 0);
+}
+
+// ── Back gesture ──
+// Every screen is a history entry, so the phone's back swipe steps back through
+// searches and sections instead of closing the app.
+// States: {} home · { q, typed?, item? } results · { section } · { menu } settings open.
+function go(state, replace = false) {
+  const url = state.section ? `#${state.section}` : location.pathname + location.search;
+  if (replace) history.replaceState(state, '', url);
+  else history.pushState(state, '', url);
+}
+
+const isHomeState = (s) => !s?.q && !s?.section;
+
+// Typing updates one entry rather than adding one per keystroke.
+function noteTyped(q) {
+  const s = history.state;
+  if (q.trim()) go({ q, typed: true, fromHome: s?.typed ? s.fromHome : isHomeState(s) }, !!s?.typed);
+  else if (s?.typed) leaveTyped();
+}
+
+// Emptying a typed search returns home without leaving a duplicate home entry behind.
+function leaveTyped() {
+  if (history.state.fromHome) { skipPop = true; history.back(); } else go({}, true);
+}
+
+function showState(s) {
+  if (s?.section && SECTIONS[s.section]) showSection(s.section, false);
+  else if (s?.item && ITEM_BY_ID[s.item]) showItem(s.item, false);
+  else if (s?.q) {
+    input.value = s.q;
+    renderResults(s.q, search(s.q));
+    window.scrollTo(0, 0);
+  } else {
+    input.value = '';
+    showHome();
+  }
 }
 
 // ═════════════ Speech out ═════════════
@@ -347,6 +398,7 @@ function unlockTts() {
 
 function forSpeech(t) {
   return t
+    .replace(/\s*\(([^)]*)\)/g, ', $1')
     .replace(/7AM/g, '7 A M')
     .replace(/LÍLLÉbaby/gi, 'Lillebaby')
     .replace(/BabyBjörn/g, 'Baby Bjorn')
@@ -361,8 +413,14 @@ function forSpeech(t) {
     .replace(/\betc\./g, 'etcetera.');
 }
 
+const dot = (s) => (s ? s.replace(/\.?$/, '.') : '');
+
+// The laundry steps to read, per the "Laundry: read" setting.
+function laundrySteps(it) {
+  return [['Wash', it.wash], ['Dry', it.dry]].filter(([label]) => settings.focus === 'both' || label.toLowerCase() === settings.focus);
+}
+
 function speechFor(r) {
-  const dot = (s) => (s ? s.replace(/\.?$/, '.') : '');
   if (r.type === 'section') {
     const s = SECTIONS[r.sectionId];
     return `${s.title}. ${(rulesOf(r.sectionId) || []).map(dot).join(' ')}`;
@@ -370,8 +428,7 @@ function speechFor(r) {
   const it = r.item;
   const sec = SECTIONS[it.section];
   if (sec.kind === 'laundry') {
-    const part = (label, c) => `${label}: ${dot(c.head)} ${dot(c.text)}`;
-    return `${it.brand ? dot(it.brand.replace(/, etc\.$/, '')) + ' ' : ''}${dot(it.name)} ${part('Wash', it.wash)} ${part('Dry', it.dry)}`;
+    return `${dot(itemTitle(it))} ${laundrySteps(it).map(([label, c]) => `${label}: ${dot(c.head)} ${dot(c.text)}`).join(' ')}`;
   }
   if (sec.kind === 'maintenance') return `${sec.short}: ${dot(it.name)} ${dot(it.when)} ${dot(it.notes)}`;
   const phases = PHASES.map(([phase]) => {
@@ -385,6 +442,53 @@ function speechFor(r) {
   }).join(' ');
   return `${dot(it.name)} ${dot(it.note)} ${phases}`;
 }
+
+// Straightforward mode: just the gist, e.g. "Wash: delicate cycle, cold. Dry: tumble dry low."
+const BRIEF_HOW = { 'dw-clean': 'dishwasher, normal cycle', handwash: 'by hand', 'dw-sterilize': 'dishwasher, sanitize and heavy load' };
+
+function methodGist(m) {
+  let s = BRIEF_HOW[m.section];
+  if (m.section === 'boil') {
+    const mins = m.how?.match(/([\d–]+)\s*min/)?.[1] || '5';
+    s = /bowl/i.test(m.how || '') ? `soak in boiling water, ${mins} min` : `boil ${mins} min`;
+  }
+  const parts = m.parts?.split(' — ')[0];
+  return parts ? `${s} for ${lowerFirst(parts)}` : s;
+}
+
+function briefFor(r) {
+  if (r.type === 'section') {
+    const s = SECTIONS[r.sectionId];
+    return `${dot(s.title)} ${dot(s.how || rulesOf(r.sectionId)?.[0])}`;
+  }
+  const it = r.item;
+  const sec = SECTIONS[it.section];
+  const title = dot(itemTitle(it));
+  if (sec.kind === 'laundry') {
+    return `${title} ${laundrySteps(it).map(([label, c]) => {
+      const first = c.text ? lowerFirst(c.text.split(/[.,;]\s*/)[0]) : '';
+      // "Tumble dry low" says more than the dryer's "Delicate cycle" heading.
+      if (label === 'Dry' && c.tone !== 'no' && first) return `Dry: ${first}.`;
+      return `${label}: ${lowerFirst(c.head)}${first ? `, ${first}` : ''}.`;
+    }).join(' ')}`;
+  }
+  if (sec.kind === 'maintenance') return `${title} ${dot(it.when)}`;
+  const [only] = it.methods;
+  if (it.methods.length === 1 && only.notes && (only.section === 'handwash' || only.section === 'health')) {
+    return `${title} ${dot(only.notes.split(/;\s*|\.\s+/)[0])}`;
+  }
+  return `${title} ${PHASES.map(([phase]) => {
+    const ms = it.methods.filter((m) => SECTIONS[m.section].phase === phase);
+    return ms.length ? `${phase === 'Everyday wash' ? 'Wash' : phase}: ${ms.map(methodGist).join(', or ')}.` : '';
+  }).filter(Boolean).join(' ')}`;
+}
+
+function sayFor(r, detail = settings.detail) {
+  if (detail === 'name') return dot(shortName(r));
+  return detail === 'brief' ? briefFor(r) : speechFor(r);
+}
+// A speaker-button tap is an explicit ask, so never answer it with just the name.
+const askedDetail = () => (settings.detail === 'brief' ? 'brief' : 'full');
 
 // Speak sentence by sentence: Chrome drops long utterances, and it lets us stop cleanly.
 function speak(text, onDone, btn) {
@@ -435,8 +539,8 @@ function listJoin(xs) {
 function answerText(results, query) {
   if (!results.length) return `Sorry, I couldn't find ${query} in the guide.`;
   const strong = results.filter((r) => r.strong);
-  let text = speechFor(results[0]);
-  if (strong.length > 1) {
+  let text = sayFor(results[0]);
+  if (strong.length > 1 && settings.detail !== 'name') {
     const others = strong.slice(1, 4).map(shortName);
     text += ` Also matched: ${listJoin(others)}.${handsFree ? ' Say next to hear it.' : ''}`;
   }
@@ -453,7 +557,25 @@ function speakNext(onDone) {
   const pool = spokenPool();
   if (current.spoken + 1 >= pool.length) { speak('That was the last match.', onDone); return; }
   current.spoken++;
-  speak(speechFor(pool[current.spoken]), onDone);
+  reveal(pool[current.spoken]);
+  speak(sayFor(pool[current.spoken]), onDone);
+}
+
+// Bring a result into view, opening it first if it's only a row.
+function reveal(r) {
+  const i = current.results.indexOf(r);
+  const row = resultsEl.querySelector(`[data-expand="${i}"]`);
+  const el = row ? expandRow(row) : resultsEl.querySelector(`[data-speak="${i}"]`)?.closest('.card');
+  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function expandRow(row) {
+  const i = +row.dataset.expand;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = cardFor(current.results[i], current.query, i);
+  const card = wrap.firstElementChild;
+  row.replaceWith(card);
+  return card;
 }
 
 // ═════════════ Speech in ═════════════
@@ -585,9 +707,7 @@ function listen() {
     clearTimeout(startWatch);
     setListening(true);
     armQuiet(9000);
-    setStatus(handsFree
-      ? 'Listening… <span class="hint">Say an item, or “repeat”, “next”, “stop”</span>'
-      : 'Listening…');
+    setStatus(handsFree ? `Listening… <span class="hint">${handsFreeHint()}</span>` : 'Listening…');
   };
   r.onresult = (e) => {
     if (done) return;
@@ -661,6 +781,25 @@ function listenSoon(delay = 250) {
 const CMD_STOP = /^(stop|stop listening|cancel|exit|quit|done|i m done|im done|that s all|thats all|that s it|thats it|goodbye|bye|turn off|hands free off|off|thank you|thanks)$/;
 const CMD_REPEAT = /^(repeat|repeat that|again|say that again|say it again|what|pardon|come again|one more time)$/;
 const CMD_NEXT = /^(next|next one|the next one|more|other|another|what else|skip|other one)$/;
+const CMD_READ = /^(read|read it|read that|read it out|read it to me|read aloud|tell me|tell me more|more details|details|full details)$/;
+// Spoken settings changes: [pattern, setting, value, confirmation].
+const CMD_SETTINGS = [
+  [/^(wash only|washing only|just wash|just washing|wash mode|washing mode|washing)$/, 'focus', 'wash', 'Wash only.'],
+  [/^(dry only|drying only|just dry|just drying|dry mode|drying mode|drying)$/, 'focus', 'dry', 'Dry only.'],
+  [/^(both|wash and dry|washing and drying|both steps)$/, 'focus', 'both', 'Wash and dry.'],
+  [/^(straightforward|straight forward|straightforward mode|straight forward mode|brief|brief mode|short|short mode|keep it short)$/, 'detail', 'brief', 'Straightforward.'],
+  [/^(just the name|just the names|just names|names only|name only|names|quick|quick mode|list mode)$/, 'detail', 'name', 'Just the names.'],
+  [/^(everything|read everything|full|full mode|all details|every detail)$/, 'detail', 'full', 'Reading everything.'],
+];
+
+function modeTag() {
+  return [{ brief: 'Straightforward', name: 'Just the name' }[settings.detail], { wash: 'Wash only', dry: 'Dry only' }[settings.focus]]
+    .filter(Boolean).join(' · ');
+}
+function handsFreeHint() {
+  const tag = modeTag();
+  return `Say an item, or “${settings.detail === 'name' ? 'read it' : 'repeat'}”, “next”, “stop”${tag ? `<br>${tag}` : ''}`;
+}
 
 function handleUtterance(alts) {
   if (!voiceWorked) { voiceWorked = true; store.set('voice-worked', true); }
@@ -674,9 +813,22 @@ function handleUtterance(alts) {
     speak('Okay, hands-free off.');
     return;
   }
+  const setting = CMD_SETTINGS.find(([re]) => re.test(n));
+  if (setting) {
+    const [, key, value, said] = setting;
+    setSetting(key, value);
+    setStatus(modeTag() || 'Reading everything, wash and dry');
+    speak(said, after);
+    return;
+  }
+  if (CMD_READ.test(n) && current.results.length) {
+    setStatus('');
+    speak(sayFor(spokenPool()[current.spoken], 'full'), after);
+    return;
+  }
   if (CMD_REPEAT.test(n) && current.results.length) {
     setStatus('');
-    speak(current.spoken ? speechFor(spokenPool()[current.spoken]) : answerText(current.results, current.query), after);
+    speak(current.spoken ? sayFor(spokenPool()[current.spoken]) : answerText(current.results, current.query), after);
     return;
   }
   if (CMD_NEXT.test(n) && current.results.length) {
@@ -688,6 +840,7 @@ function handleUtterance(alts) {
   const { query, results } = searchBest(alts);
   input.value = query;
   renderResults(query, results);
+  go({ q: query });
   window.scrollTo(0, 0);
   remember(results[0]);
   setStatus(results.length ? '' : `<span class="heard">Heard “${esc(query)}”</span>`);
@@ -710,7 +863,7 @@ function startHandsFree() {
   hfBtn.setAttribute('aria-pressed', 'true');
   document.body.classList.add('handsfree');
   keepAwake(true);
-  setStatus('Hands-free on <span class="hint">Say an item, or “repeat”, “next”, “stop”</span>');
+  setStatus(`Hands-free on <span class="hint">${handsFreeHint()}</span>`);
   speak('Hands-free on. Say an item.', () => listenSoon(100));
 }
 
@@ -733,14 +886,17 @@ input.addEventListener('input', () => {
   typingTimer = setTimeout(() => {
     const q = input.value;
     renderResults(q, search(q));
+    noteTyped(q);
   }, 90);
 });
 
 $('#searchform').addEventListener('submit', (e) => {
   e.preventDefault();
+  clearTimeout(typingTimer);
   const q = input.value;
   const results = search(q);
   renderResults(q, results);
+  noteTyped(q);
   remember(results[0]);
   input.blur();
   window.scrollTo(0, 0);
@@ -749,6 +905,9 @@ $('#searchform').addEventListener('submit', (e) => {
 clearBtn.addEventListener('click', () => {
   input.value = '';
   showHome();
+  // A half-typed search isn't worth going back to; a finished one is.
+  if (history.state?.typed) leaveTyped();
+  else if (!isHomeState(history.state)) go({});
   input.focus();
 });
 
@@ -804,7 +963,7 @@ readBtn.addEventListener('click', () => {
 });
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-speak],[data-expand],[data-section],[data-item],[data-home]');
+  const t = e.target.closest('[data-speak],[data-expand],[data-section],[data-item],[data-back]');
   if (!t) return;
   if (t.dataset.speak != null) {
     unlockTts();
@@ -813,26 +972,69 @@ document.addEventListener('click', (e) => {
     if (t.classList.contains('on')) { stopSpeaking(); return; }
     if (listening) stopListening();
     remember(r);
-    speak(speechFor(r), handsFree ? () => listenSoon() : null, t);
+    speak(sayFor(r, askedDetail()), handsFree ? () => listenSoon() : null, t);
   } else if (t.dataset.expand != null) {
-    const i = +t.dataset.expand;
-    const r = current.results[i];
-    remember(r);
-    const wrap = document.createElement('div');
-    wrap.innerHTML = cardFor(r, current.query, i);
-    t.replaceWith(wrap.firstElementChild);
+    remember(current.results[+t.dataset.expand]);
+    expandRow(t);
   } else if (t.dataset.section) {
     showSection(t.dataset.section);
   } else if (t.dataset.item) {
     showItem(t.dataset.item);
-  } else if (t.dataset.home != null) {
+  } else if (t.dataset.back != null) {
     history.back();
   }
 });
 
+// ── Settings menu ──
+const menuEl = $('#menu');
+const THEME_COLOR = { light: '#EBF3F7', dark: '#121618' };
+let skipPop = false;
+
+function applyTheme() {
+  const t = settings.theme;
+  if (t === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = t;
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    m.content = THEME_COLOR[t === 'auto' ? (/dark/.test(m.media) ? 'dark' : 'light') : t];
+  });
+}
+
+function setSetting(key, value) {
+  settings[key] = value;
+  store.set(key, value);
+  if (key === 'theme') applyTheme();
+  syncMenu();
+}
+
+function syncMenu() {
+  for (const key of Object.keys(settings)) {
+    const el = menuEl.querySelector(`input[name="${key}"][value="${settings[key]}"]`);
+    if (el) el.checked = true;
+  }
+}
+
+$('#menu-btn').addEventListener('click', () => {
+  syncMenu();
+  menuEl.showModal();
+  // So the back gesture closes the menu rather than leaving the page under it.
+  history.pushState({ ...(history.state || {}), menu: true }, '');
+});
+menuEl.addEventListener('change', (e) => {
+  if (e.target.name in settings) setSetting(e.target.name, e.target.value);
+});
+menuEl.addEventListener('click', (e) => {
+  // The dialog element itself is only hit on the backdrop around the sheet.
+  if (e.target === menuEl || e.target.closest('[data-close]')) menuEl.close();
+});
+menuEl.addEventListener('close', () => {
+  if (history.state?.menu) { skipPop = true; history.back(); }
+});
+
 window.addEventListener('popstate', (e) => {
-  if (e.state?.section) showSection(e.state.section, false);
-  else { input.value = ''; showHome(); }
+  if (skipPop) { skipPop = false; return; }
+  // Back while the menu is open just closes it; the screen underneath is unchanged.
+  if (menuEl.open) { menuEl.close(); return; }
+  showState(e.state);
 });
 
 document.addEventListener('visibilitychange', () => {
@@ -855,14 +1057,16 @@ $('.arch h1').addEventListener('click', () => {
 
 // ═════════════ Boot ═════════════
 
+applyTheme();
 renderBrowse();
 updateVoiceUi();
 const startSection = location.hash.slice(1);
 if (SECTIONS[startSection]) {
-  history.replaceState(null, '', location.pathname);
+  go({}, true);
   showSection(startSection);
 } else {
-  showHome();
+  // A reload keeps whatever screen was showing.
+  showState(history.state);
 }
 
 if ('serviceWorker' in navigator) {

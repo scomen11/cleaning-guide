@@ -3,58 +3,58 @@ import { search, searchBest } from '../search.js';
 
 // [query, id expected among the strong results (top group)]
 const CASES = [
-  ['kyte', 'kyte'],
-  ['kite footies', 'kyte'],
-  ['Kyte baby onesie', 'kyte'],
-  ['kyte pajamas', 'kyte'],
-  ['magnetic me', 'magnetic-me'],
-  ['magnetic me footie', 'magnetic-me'],
-  ['magentic', 'magnetic-me'],
-  ['fleece pram', 'magnetic-me'],
-  ['carters onesie', 'mori-carters'],
-  ['Carter\'s footies', 'mori-carters'],
-  ['gunamuna', 'mori-carters'],
-  ['gunna muna', 'mori-carters'],
-  ['mori', 'mori-carters'],
-  ['footies', 'kyte'],
-  ['footies', 'magnetic-me'],
-  ['footies', 'mori-carters'],
-  ['bombas socks', 'bombas-zutano'],
-  ['zootano', 'bombas-zutano'],
-  ['socks', 'bombas-zutano'],
-  ['7 a.m. hat', '7am-cooper-pearl'],
-  ['seven am hat', '7am-cooper-pearl'],
-  ['cooper pearl', '7am-cooper-pearl'],
-  ['top knot', '7am-cooper-pearl'],
+  ['kyte', 'kyte-footies'],
+  ['kite footies', 'kyte-footies'],
+  ['Kyte baby onesie', 'kyte-onesies'],
+  ['kyte pajamas', 'kyte-footies'],
+  ['magnetic me', 'magnetic-me-footies'],
+  ['magnetic me footie', 'magnetic-me-footies'],
+  ['magentic', 'magnetic-me-pram'],
+  ['fleece pram', 'magnetic-me-pram'],
+  ['carters onesie', 'carters-onesies'],
+  ["Carter's footies", 'carters-footies'],
+  ['gunamuna', 'gunamuna-footies'],
+  ['gunna muna', 'gunamuna-onesies'],
+  ['mori', 'mori-onesies'],
+  ['footies', 'kyte-footies'],
+  ['footies', 'magnetic-me-footies'],
+  ['footies', 'other-footies'],
+  ['bombas socks', 'bombas-socks'],
+  ['zootano', 'zutano-booties'],
+  ['socks', 'bombas-socks'],
+  ['7 a.m. hat', '7am-hat'],
+  ['seven am hat', '7am-hat'],
+  ['cooper pearl', 'cooper-pearl-hat'],
+  ['top knot', 'cooper-pearl-hat'],
   ['bonnet', 'domani'],
   ['domani', 'domani'],
   ['leg warmers', 'hand-knit'],
   ['knitted sweater', 'hand-knit'],
   ['swadle', 'swaddles'],
-  ['halo swaddle', 'swaddles'],
-  ['burp cloth', 'bedding'],
-  ['crib sheet', 'bedding'],
-  ['bibs', 'bedding'],
-  ['hooded towel', 'bedding'],
-  ['nursing pillow cover', 'bedding'],
+  ['halo swaddle', 'halo-swaddle'],
+  ['burp cloth', 'burp-cloths'],
+  ['crib sheet', 'crib-sheets'],
+  ['bibs', 'bibs'],
+  ['hooded towel', 'hooded-towels'],
+  ['nursing pillow cover', 'nursing-pillow-cover'],
   ['solly', 'solly'],
   ['sally wrap', 'solly'],
-  ['stroller blanket', 'solly'],
+  ['stroller blanket', 'stroller-blankets'],
   ['car seat cover', 'car-seat'],
-  ['lillebaby', 'car-seat'],
-  ['lily baby carrier', 'car-seat'],
-  ['baby bjorn bouncer', 'car-seat'],
-  ['bjorn', 'car-seat'],
+  ['lillebaby', 'lillebaby'],
+  ['lily baby carrier', 'lillebaby'],
+  ['baby bjorn bouncer', 'babybjorn'],
+  ['bjorn', 'babybjorn'],
   ['lily pad', 'lily-pad'],
   ['play mat', 'lily-pad'],
-  ['thumbie', 'thumbie-otter'],
-  ['snuggle otter', 'thumbie-otter'],
-  ['jellycat', 'spot-clean-plush'],
-  ['jelly cat', 'spot-clean-plush'],
-  ['jely cat rattle', 'spot-clean-plush'],
-  ['mon ami lamb', 'spot-clean-plush'],
-  ['cuddle and kind', 'spot-clean-plush'],
-  ['cuddle+kind daisy', 'spot-clean-plush'],
+  ['thumbie', 'bunny-thumbie'],
+  ['snuggle otter', 'snuggle-otter'],
+  ['jellycat', 'jellycat-bear'],
+  ['jelly cat', 'jellycat-bunny'],
+  ['jely cat rattle', 'jellycat-bear'],
+  ['mon ami lamb', 'mon-ami-lamb'],
+  ['cuddle and kind', 'cuddle-kind-bunny'],
+  ['cuddle+kind daisy', 'cuddle-kind-daisy'],
   ['lorena canal', 'lorena-canal'],
   ['handmade toy', 'handmade-toys'],
   ['pump parts', 'pump-parts'],
@@ -75,17 +75,17 @@ const CASES = [
   ['haakaa', 'haakaa'],
   ['hakka', 'haakaa'],
   ['ladybug', 'haakaa'],
-  ['frigg', 'frigg'],
-  ['fridge pacifier', 'frigg'],
-  ['binky', 'frigg'],
-  ['teether', 'frigg'],
+  ['frigg', 'frigg-pacifiers'],
+  ['fridge pacifier', 'frigg-pacifiers'],
+  ['binky', 'frigg-pacifiers'],
+  ['teether', 'frigg-teethers'],
   ['bath toys', 'bath-items'],
   ['bottle brush', 'bottle-brush'],
   ['drying rack', 'drying-rack'],
   ['lawn', 'drying-rack'],
   ['changing pad', 'vinyl-changing-pad'],
-  ['diaper pail', 'wipes-pail'],
-  ['wipes', 'wipes-pail'],
+  ['diaper pail', 'diaper-pail'],
+  ['wipes', 'wipe-dispensers'],
   ['nose frida', 'nosefrida'],
   ['nosefreida', 'nosefrida'],
   ['snot sucker', 'nosefrida'],
@@ -101,6 +101,31 @@ const CASES = [
   ['sterilize', 'section:dw-sterilize'],
   ['boiling', 'section:boil'],
   ['which detergent', 'section:clothing'],
+  ['soft jellycat rattles', 'jellycat-bunny'],
+  ['kyte pants', 'kyte-pants'],
+  ['kyte mittens', 'kyte-mittens'],
+  ['halo', 'halo-swaddle'],
+  ['swaddle', 'swaddles'],
+  ['car seat', 'car-seat'],
+  ['stroller', 'stroller-fabric'],
+  ['zutano booties', 'zutano-booties'],
+  ['onesie', 'other-onesies'],
+  ['teething', 'frigg-teethers'],
+];
+
+// Products that share steps are still different items and must not crowd each other in.
+// [query, ids that must NOT be among the strong results]
+const EXCLUDE = [
+  ['soft jellycat rattles', ['mon-ami-lamb', 'cuddle-kind-daisy', 'cuddle-kind-bunny']],
+  ['mon ami lamb', ['jellycat-bear', 'jellycat-bunny', 'cuddle-kind-daisy']],
+  ['kyte pants', ['kyte-footies', 'kyte-onesies', 'kyte-mittens']],
+  ['bibs', ['burp-cloths', 'crib-sheets', 'washcloths']],
+  ['burp cloth', ['bibs', 'washcloths']],
+  ['bjorn', ['lillebaby', 'car-seat']],
+  ['snuggle otter', ['bunny-thumbie']],
+  ['carters footies', ['carters-onesies', 'mori-footies']],
+  ['teether', ['frigg-pacifiers']],
+  ['diaper pail', ['wipe-dispensers']],
 ];
 
 let fail = 0;
@@ -113,6 +138,12 @@ for (const [q, want] of CASES) {
   }
 }
 
+for (const [q, bad] of EXCLUDE) {
+  const strong = search(q).filter((r) => r.strong).map((r) => r.id);
+  const wrong = bad.filter((id) => strong.includes(id));
+  if (wrong.length) { fail++; console.log(`FAIL  "${q}" should not show ${wrong.join(', ')}; strong=[${strong.join(', ')}]`); }
+}
+
 // Junk should not produce confident matches.
 for (const q of ['asdfgh', 'refrigerator manual', 'xylophone']) {
   const res = search(q).filter((r) => r.strong);
@@ -123,5 +154,6 @@ for (const q of ['asdfgh', 'refrigerator manual', 'xylophone']) {
 const alt = searchBest(['night frida', 'nail frida']);
 if (alt.results[0]?.id !== 'nailfrida') { fail++; console.log('FAIL  searchBest alternatives'); }
 
-console.log(`${CASES.length + 4 - fail}/${CASES.length + 4} passed`);
+const total = CASES.length + EXCLUDE.length + 4;
+console.log(`${total - fail}/${total} passed`);
 process.exit(fail ? 1 : 0);

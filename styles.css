@@ -37,8 +37,9 @@
   --dock-h: 104px;
   color-scheme: light;
 }
+/* Dark: follows the phone unless a theme is chosen in Settings. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --paper: #121618;
     --ink: #ECEFF0;
     --ink-2: #A7B1B6;
@@ -56,6 +57,24 @@
     --shadow: none;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --paper: #121618;
+  --ink: #ECEFF0;
+  --ink-2: #A7B1B6;
+  --line: #283035;
+  --blue: #1C262B;
+  --blue-deep: #23323A;
+  --green: #22301F;
+  --yellow: #3A3120;
+  --pink: #3B242A;
+  --lav: #2B2531;
+  --mic: #DCE9EF;
+  --mic-ink: #121618;
+  --live: #E58A9C;
+  --mark: #5A4A22;
+  --shadow: none;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -80,14 +99,18 @@ svg { display: block; }
   background: color-mix(in srgb, var(--paper) 88%, transparent);
   -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
 }
+.top-in { display: flex; align-items: center; gap: 6px; max-width: 640px; margin: 0 auto; }
 .searchbar {
+  flex: 1; min-width: 0;
   display: flex; align-items: center; gap: 6px;
   height: 56px; padding: 0 6px 0 16px;
   background: var(--blue);
   border: 1.5px solid var(--blue-deep);
   border-radius: 28px;
-  max-width: 640px; margin: 0 auto;
 }
+.menu-btn { width: 48px; height: 48px; border-radius: 24px; display: grid; place-items: center; flex: none; margin-right: -6px; color: var(--ink-2); }
+.menu-btn svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.menu-btn:active { background: var(--blue); }
 .searchbar:focus-within { border-color: var(--ink-2); }
 .searchbar-icon { width: 22px; height: 22px; flex: none; fill: none; stroke: var(--ink-2); stroke-width: 2; stroke-linecap: round; }
 #q {
@@ -142,6 +165,7 @@ main {
   min-height: 44px; padding: 8px 16px; border-radius: 22px;
   border: 1.5px solid var(--line); background: var(--paper);
   font-size: 16.5px; line-height: 1.2; text-align: left;
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .chip:active { background: var(--blue); }
 
@@ -337,6 +361,53 @@ body.speaking .mic-ring { opacity: .6; border-color: var(--mic); animation: none
 .status .heard { font-style: italic; }
 .status .hint { display: block; font-size: 14px; color: var(--ink-2); margin-top: 2px; }
 .status.warn { background: var(--yellow); border-radius: 12px; width: calc(100% - 28px); }
+
+/* "next" scrolls a card into view; keep it clear of the sticky search bar. */
+.card, .row { scroll-margin-top: calc(env(safe-area-inset-top) + 86px); }
+
+/* ── Settings sheet ───────────────────────────── */
+.sheet {
+  width: 100%; max-width: 560px; max-height: 92dvh; overflow: auto;
+  margin: auto auto 0; padding: 0; border: 0;
+  border-radius: 22px 22px 0 0;
+  background: var(--paper); color: var(--ink);
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, .18);
+}
+.sheet::backdrop { background: rgba(12, 20, 24, .45); }
+.sheet-in { padding: 10px 18px calc(env(safe-area-inset-bottom) + 22px); }
+.sheet-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sheet-h h2 { font: 400 28px/1 var(--display); text-transform: uppercase; margin: 0; }
+.sheet-x { width: 48px; height: 48px; border-radius: 24px; display: grid; place-items: center; margin-right: -10px; }
+.sheet-x svg { width: 22px; height: 22px; fill: none; stroke: var(--ink-2); stroke-width: 2.2; stroke-linecap: round; }
+.sheet-x:active { background: var(--blue); }
+
+.opt { border: 0; margin: 0 0 20px; padding: 0; min-width: 0; }
+.opt legend {
+  padding: 0; margin-bottom: 10px;
+  font: 700 12.5px/1 var(--serif); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2);
+}
+.opt-hint { margin: 8px 2px 0; font-size: 14.5px; line-height: 1.35; color: var(--ink-2); font-style: italic; }
+.seg label, .choices label { position: relative; display: block; cursor: pointer; }
+.seg input, .choices input { position: absolute; opacity: 0; pointer-events: none; }
+.seg input:focus-visible + span, .choices input:focus-visible + span { outline: 3px solid var(--live); outline-offset: 2px; }
+
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: var(--blue); }
+.seg span {
+  display: grid; place-items: center; min-height: 46px; padding: 4px 6px; border-radius: 10px;
+  font-weight: 600; font-size: 16px; line-height: 1.15; text-align: center; color: var(--ink-2);
+}
+.seg input:checked + span { background: var(--paper); color: var(--ink); box-shadow: 0 1px 3px rgba(20, 35, 45, .16); }
+
+.choices { display: grid; gap: 8px; }
+.choices span { position: relative; display: block; padding: 11px 14px 12px 46px; border: 1.5px solid var(--line); border-radius: 12px; }
+.choices span::before {
+  content: ''; position: absolute; left: 15px; top: 14px;
+  width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--ink-2);
+}
+.choices b { display: block; font-size: 17.5px; line-height: 1.3; }
+.choices small { display: block; margin-top: 2px; font-size: 14.5px; line-height: 1.35; color: var(--ink-2); }
+.choices input:checked + span { border-color: var(--ink); background: var(--blue); }
+.choices input:checked + span::before { border-color: var(--ink); background: radial-gradient(circle, var(--ink) 0 4.5px, transparent 5.5px); }
 
 /* While typing, the keyboard covers the dock anyway — get it out of the way. */
 body.typing .dock-wrap { display: none; }

@@ -1,6 +1,7 @@
 import { ITEMS, SECTIONS } from './data.js';
 import { search, searchBest, matchedWords, normalize } from './search.js';
 import * as stt from './stt.js';
+import { knownPhrases, phrasesOf, understand } from './phrases.js';
 
 const $ = (s) => document.querySelector(s);
 const input = $('#q');
@@ -17,7 +18,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
 
-const BUILD = 8;  // shown in Settings → Voice log; bump along with VERSION in sw.js
+const BUILD = 9;  // shown in Settings → Voice log; bump along with VERSION in sw.js
 
 const ITEM_BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -804,6 +805,15 @@ function showSetupProgress(p) {
   if (el) el.textContent = `${setupPct}%`;
 }
 
+// Voice picks the best fit among everything the guide knows (phrases.js) — far more
+// reliable with noise and brand names than writing down whatever it hears.
+let phrasesSent = null;
+function sendPhrases() {
+  const commands = [CMD_STOP, CMD_REPEAT, CMD_NEXT, CMD_READ, ...CMD_SETTINGS.map(([re]) => re)].flatMap(phrasesOf);
+  phrasesSent ??= stt.setPhrases(knownPhrases(commands));
+  return phrasesSent;
+}
+
 function listenWithApp() {
   stopSpeaking();
   recording?.cancel();
@@ -825,11 +835,13 @@ function listenWithApp() {
     if (r.cancelled) return;
     if (!clip) { logVoice('record: nothing said'); return voiceFailed('no-speech', Infinity, true); }
     setStatus(stt.isReady() ? '<span class="heard">…</span>' : `Almost ready… <span class="hint">${setupHint()}</span>`);
-    const { texts, ms } = await stt.transcribeClip(clip);
-    logVoice(`heard ${texts.map((t) => `"${t}"`).join(' / ') || 'nothing'} in ${ms}ms (${(clip.end - clip.start).toFixed(1)}s of speech)`);
+    await sendPhrases();
+    const u = await understand(clip, stt);
+    logVoice(`${(clip.end - clip.start).toFixed(1)}s of speech, ${u.ms}ms. Best fit ${u.choices.slice(0, 3).map((c) => `"${c.text}" ${c.score}`).join(', ') || 'none'}`
+      + `${u.heard ? `; heard ${u.heard.map((t) => `"${t}"`).join(' / ') || 'nothing'}` : ''} → ${u.how} "${u.texts[0] ?? ''}"`);
     if (r.cancelled) return;
-    if (!texts.length) return voiceFailed('no-speech', Infinity, true);
-    handleUtterance(texts);
+    if (!u.texts.length) return voiceFailed('no-speech', Infinity, true);
+    handleUtterance(u.texts);
   }).catch((err) => {
     if (recording === r) recording = null;
     setListening(false);

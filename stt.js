@@ -70,6 +70,21 @@ export function loadModel(onProgress) {
   return loading;
 }
 
+// What the guide knows (see phrases.js), for chooseClip() to pick from.
+export function setPhrases(list) {
+  return call('phrases', { list });
+}
+
+// The known phrases that best fit the speech, best first: [{ text, key, score }], where
+// score is the average log-probability per word-piece (0 is certain; below about -3, a guess).
+export async function chooseClip({ audio, start, end }) {
+  await loadModel();
+  const a = Math.max(0, Math.round((start - 0.1) * 16000));
+  const b = Math.min(audio.length, Math.round((end + 0.3) * 16000));
+  const { choices, ms } = await call('choose', { audio: audio.slice(a, b) });
+  return { choices, ms };
+}
+
 export async function transcribe(audio) {
   await loadModel();
   const { text, ms } = await call('transcribe', { audio }, [audio.buffer]);

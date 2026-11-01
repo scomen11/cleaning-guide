@@ -72,8 +72,14 @@ export const SECTIONS = {
 // A PDF row often lists several products that share one set of steps. Each product gets
 // its own entry (so "Jellycat rattle" doesn't also bring up the Mon Ami lamb): `each`
 // copies the shared steps onto every product and adds the shared search terms to its own.
+// When the group shares a brand, its shared terms are ways of saying that brand ("kite" for
+// Kyte); `brandSays` keeps them so voice can listen for "kite pants" as well as "Kyte pants".
 function each(shared, items) {
-  return items.map((it) => ({ ...shared, ...it, aliases: [...(it.aliases || []), ...(shared.aliases || [])] }));
+  return items.map((it) => ({
+    ...shared, ...it,
+    aliases: [...(it.aliases || []), ...(shared.aliases || [])],
+    ...(shared.brand && shared.aliases ? { brandSays: shared.aliases } : {}),
+  }));
 }
 
 const DELICATE_COLD = { tone: 'ok', head: 'Delicate cycle', text: 'Cold, make sure all fasteners are closed' };

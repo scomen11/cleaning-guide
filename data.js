@@ -90,7 +90,7 @@ export const ITEMS = [
     section: 'clothing', brand: 'Kyte',
     wash: { tone: 'ok', head: 'Delicate cycle', text: 'Cold, inside out, make sure all fasteners are closed, use delicates bag' },
     dry: NO_DRYER,
-    aliases: ['kyte', 'kite', 'kyte baby', 'kite baby', 'kight', 'bamboo'],
+    aliases: ['kyte', 'kite', 'kyte baby', 'kite baby', 'kight', 'kai', 'kye', 'bamboo'],
   }, [
     { id: 'kyte-footies', name: 'Footies', aliases: FOOTIES },
     { id: 'kyte-onesies', name: 'Onesies', aliases: ONESIES },
@@ -336,7 +336,7 @@ export const ITEMS = [
       { section: 'handwash' },
       { section: 'boil', how: 'Boil in a pot for 2–3 min.', notes: 'Be careful with water that collects on the inside so you don’t burn yourself' },
     ],
-    aliases: ['haakaa', 'haaka', 'hakka', 'haka', 'hacka', 'hakaa', 'haakka', 'hockey', 'ladybug', 'lady bug', 'milk collector', 'collector', 'milk catcher', 'silicone pump'],
+    aliases: ['haakaa', 'haaka', 'hakka', 'haka', 'hacka', 'hakaa', 'haakka', 'hockey', 'hacker', 'hawker', 'ladybug', 'lady bug', 'milk collector', 'collector', 'milk catcher', 'silicone pump'],
   },
   ...each({
     section: 'boil', sub: 'Rubber and silicone',
@@ -381,7 +381,7 @@ export const ITEMS = [
     id: 'nosefrida', section: 'health',
     name: 'NoseFrida',
     methods: [{ section: 'health', notes: 'Handwash or use dishwasher for rigid parts and swirl rubbing alcohol through the tube; replace filter after each use and replace tube if discolored or musty' }],
-    aliases: ['nosefrida', 'nose frida', 'nose freida', 'nose frieda', 'nose fritter', 'frida', 'snot sucker', 'snotsucker', 'snot', 'nasal aspirator', 'aspirator', 'booger', 'nose'],
+    aliases: ['nosefrida', 'nose frida', 'nose freida', 'nose frieda', 'nose fritter', 'nose free', 'nose freda', 'nos frida', 'nos free', 'frida', 'snot sucker', 'snotsucker', 'snot', 'nasal aspirator', 'aspirator', 'booger', 'nose'],
   },
   {
     id: 'thermometer', section: 'health',

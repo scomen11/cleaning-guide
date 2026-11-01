@@ -76,8 +76,36 @@ Object.defineProperty(document, 'hidden', { value: false });
 const html = await (await fetch('../index.html')).text();
 document.body.innerHTML = new DOMParser().parseFromString(html, 'text/html').body.innerHTML;
 localStorage.clear();
+// ?builtin: use the phone's own recognizer (the fake above) even when pretending to be an iPhone.
+if (location.search.includes('builtin')) localStorage.setItem('engine', '"phone"');
 await import('../app.js');
 window.__ready = true;
+
+// ?apptest: one tap with the app's own recognition, which uses the real (or a fake) microphone:
+// chrome --headless=new --use-fake-ui-for-media-stream --use-fake-device-for-media-stream
+//   --use-file-for-fake-audio-capture=tests/audio/mic-kyte-pants.wav --dump-dom ".../voice.html?ios&apptest"
+if (location.search.includes('apptest')) {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  window.__keepAudio = true;
+  const taps = +new URLSearchParams(location.search).get('apptest') || 1;
+  for (let n = 0; n < taps; n++) {
+    document.querySelector('#q').value = '';
+    document.querySelector('#mic').click();
+    for (let i = 0; i < 600 && !document.querySelector('#q').value && !/catch/.test(document.querySelector('#status').innerText); i++) await wait(100);
+    await wait(300);
+  }
+  document.querySelector('#menu-btn').click();
+  const pre = document.createElement('pre'); pre.id = 'autotest';
+  const a = window.__lastAudio;
+  const rms = [];
+  for (let i = 0; a && i < a.length; i += 1600) {
+    let s = 0;
+    for (let j = i; j < Math.min(i + 1600, a.length); j++) s += a[j] * a[j];
+    rms.push(Math.sqrt(s / 1600).toFixed(3));
+  }
+  pre.textContent = `q=${document.querySelector('#q').value}\n${document.querySelector('#vlog').textContent}\nrms per 100ms: ${rms.join(' ')}`;
+  document.body.append(pre);
+}
 
 // ?autotest: tap the mic through the iPhone "deaf" bug and write what happened into the page
 // (for headless runs: msedge --headless=new --dump-dom ".../voice.html?mode=deaf&ios&autotest").

@@ -1,5 +1,6 @@
 import { ITEMS, SECTIONS } from './data.js';
 import { search, searchBest, matchedWords, normalize } from './search.js';
+import * as stt from './stt.js';
 
 const $ = (s) => document.querySelector(s);
 const input = $('#q');
@@ -16,7 +17,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
 
-const BUILD = 7;  // shown in Settings → Voice log; bump along with VERSION in sw.js
+const BUILD = 8;  // shown in Settings → Voice log; bump along with VERSION in sw.js
 
 const ITEM_BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -27,6 +28,7 @@ const settings = {
   theme: store.get('theme', 'auto'),   // auto | light | dark
   detail: store.get('detail', 'full'), // full | brief | name: how much an automatic answer reads aloud
   focus: store.get('focus', 'both'),   // both | wash | dry: which laundry step is read aloud
+  engine: store.get('engine', 'auto'), // auto | app | phone: whose speech recognition to use
 };
 
 const ICON = {
@@ -580,8 +582,9 @@ const standalone = matchMedia('(display-mode: standalone)').matches || navigator
 // Remembered only when voice has never worked on this device/mode (a platform limit, not a hiccup).
 const BROKEN_KEY = `voice-broken-v2:${standalone ? 'app' : 'browser'}`;
 let voiceWorked = store.get('voice-worked', false);
-let voiceIn = !!SR && !(store.get(BROKEN_KEY, false) && !voiceWorked);
+let voiceIn = false;  // set by refreshVoiceIn()
 let rec = null;
+let recording = null;  // the app's own recorder, while it's listening
 let listening = false;
 let handsFree = false;
 let autoRead = store.get('autoread', false);
@@ -602,7 +605,26 @@ function logVoice(msg) {
 }
 
 function voiceStateLine() {
-  return `build ${BUILD} voice=${voiceIn ? 'on' : 'off'} worked=${voiceWorked} stuck=${iosStuck} sr=${!!SR} ios=${isIOS} app=${standalone}`;
+  const model = stt.isReady() ? 'ready' : stt.isCached() ? 'cached' : 'none';
+  return `build ${BUILD} voice=${voiceIn ? 'on' : 'off'} engine=${useAppVoice() ? 'app' : 'phone'} model=${model} worked=${voiceWorked} stuck=${iosStuck} sr=${!!SR} ios=${isIOS} app=${standalone}`;
+}
+
+// Whose speech recognition to use: the app's own (records, then transcribes on the phone)
+// or the phone's built-in one. Auto picks the app's own on iPhone, where the built-in one
+// stops hearing after the first use (iOS bug), and the phone's on Android, where it works.
+function useAppVoice() {
+  return stt.supported && (settings.engine === 'app' || (settings.engine === 'auto' && isIOS));
+}
+
+function refreshVoiceIn() {
+  voiceIn = useAppVoice() || (!!SR && !(store.get(BROKEN_KEY, false) && !voiceWorked));
+  // Once downloaded, load the model at startup so the first tap answers quickly.
+  if (useAppVoice() && stt.isCached()) stt.loadModel().catch(() => {});
+}
+
+function listeningStatus(extra = '') {
+  const hint = [handsFree ? handsFreeHint() : '', extra].filter(Boolean).join('<br>');
+  return `Listening…${hint ? ` <span class="hint">${hint}</span>` : ''}`;
 }
 
 function setStatus(html, warn = false) {
@@ -652,6 +674,7 @@ function listen() {
     setStatus(dictationHint());
     return;
   }
+  if (useAppVoice()) { listenWithApp(); return; }
   // A previous session that never ended (iOS can hang silently) must not block this one.
   if (rec) cancelRec(rec);
   stopSpeaking();
@@ -738,7 +761,7 @@ function startSession() {
         endNow('deaf');
       }, 5000);
     }
-    setStatus(handsFree ? `Listening… <span class="hint">${handsFreeHint()}</span>` : 'Listening…');
+    setStatus(listeningStatus());
   };
   // Logged only: shows on a phone whether the mic delivered any sound at all.
   r.onaudiostart = () => audio.push('audio');
@@ -769,6 +792,53 @@ function startSession() {
     r.ended = true;
     finish('threw');
   }
+}
+
+// ── The app's own recognition ──
+
+let setupPct = 0;
+const setupHint = () => `Setting up voice — a one-time ${stt.MODEL_MB} MB download: <span id="setup-pct">${setupPct}%</span>`;
+function showSetupProgress(p) {
+  setupPct = Math.round(p * 100);
+  const el = document.getElementById('setup-pct');
+  if (el) el.textContent = `${setupPct}%`;
+}
+
+function listenWithApp() {
+  stopSpeaking();
+  recording?.cancel();
+  stt.primeAudio();  // inside the tap: iOS only starts audio from a user gesture
+  const settingUp = !stt.isReady() && !stt.isCached();
+  stt.loadModel(showSetupProgress).catch(() => {});  // downloads while you talk, the first time
+  const r = stt.recordUtterance({
+    onSpeech: () => logVoice('speech'),
+    onLevel: ({ floor, peak }) => logVoice(`levels floor=${(floor ?? 0).toFixed(3)} peak=${peak.toFixed(3)}`),
+  });
+  recording = r;
+  setListening(true);
+  setStatus(listeningStatus(settingUp ? setupHint() : ''));
+  logVoice(`record start${stt.isReady() ? '' : ' (model loading)'}`);
+
+  r.promise.then(async (clip) => {
+    if (recording === r) recording = null;
+    setListening(false);
+    if (r.cancelled) return;
+    if (!clip) { logVoice('record: nothing said'); return voiceFailed('no-speech', Infinity, true); }
+    setStatus(stt.isReady() ? '<span class="heard">…</span>' : `Almost ready… <span class="hint">${setupHint()}</span>`);
+    const { texts, ms } = await stt.transcribeClip(clip);
+    logVoice(`heard ${texts.map((t) => `"${t}"`).join(' / ') || 'nothing'} in ${ms}ms (${(clip.end - clip.start).toFixed(1)}s of speech)`);
+    if (r.cancelled) return;
+    if (!texts.length) return voiceFailed('no-speech', Infinity, true);
+    handleUtterance(texts);
+  }).catch((err) => {
+    if (recording === r) recording = null;
+    setListening(false);
+    logVoice(`app voice error ${err?.name || ''} ${err?.message || err}`);
+    if (r.cancelled) return;
+    stopHandsFree();
+    if (err?.name === 'NotAllowedError') return setStatus(MIC_BLOCKED, true);
+    setStatus(`Voice couldn’t start.<span class="hint">${navigator.onLine ? 'Tap the mic to try again.' : 'Setting up voice the first time needs an internet connection.'}</span>`, true);
+  });
 }
 
 function voiceFailed(error, elapsed, started) {
@@ -807,6 +877,8 @@ function cancelRec(r) {
 
 function stopListening() {
   clearTimeout(listenTimer);
+  recording?.cancel();
+  recording = null;
   startToken++;
   if (rec) cancelRec(rec);
   rec = null;
@@ -971,6 +1043,11 @@ window.visualViewport?.addEventListener('resize', updateTyping);
 
 micBtn.addEventListener('click', () => {
   if (autoRead || handsFree) unlockTts();
+  if (listening && recording) {
+    // Tapping while the app's own recognition listens means "that's it": use what was said.
+    recording.stop();
+    return;
+  }
   if (listening) {
     stopListening();
     if (handsFree) stopHandsFree();
@@ -1060,6 +1137,7 @@ function setSetting(key, value) {
   settings[key] = value;
   store.set(key, value);
   if (key === 'theme') applyTheme();
+  if (key === 'engine') { refreshVoiceIn(); updateVoiceUi(); }
   syncMenu();
 }
 
@@ -1117,6 +1195,7 @@ $('.arch h1').addEventListener('click', () => {
 
 applyTheme();
 renderBrowse();
+refreshVoiceIn();
 updateVoiceUi();
 const startSection = location.hash.slice(1);
 if (SECTIONS[startSection]) {

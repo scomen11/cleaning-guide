@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>On-phone speech test</title></head>
+<body>
+<pre id="out">running…</pre>
+<script type="module">
+// Transcribes the clips in tests/audio with the on-phone model and searches each result.
+self.__sttModel = new URLSearchParams(location.search).get('model');
+const { loadModel, transcribeClip } = await import('../stt.js');
+import { searchBest } from '../search.js';
+
+const out = document.querySelector('#out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); };
+const CLIPS = { jellycat: 'jellycat-bear', 'kyte-pants': 'kyte-pants', haakaa: 'haakaa', bottles: 'bottles', 'nose-frida': 'nosefrida', next: null };
+
+let t0 = performance.now();
+let last = 0;
+await loadModel((p) => { if (p - last > 0.25) { last = p; log(`download ${Math.round(p * 100)}%`); } });
+log(`model ready in ${Math.round(performance.now() - t0)} ms`);
+
+const ctx = new OfflineAudioContext(1, 1, 16000);
+let pass = 0, total = 0;
+// Each clip is padded the way a recording is (silence and faint noise around the words),
+// then cut and transcribed exactly as the app does.
+for (const noise of [0, 0.003]) {
+  for (const [clip, want] of Object.entries(CLIPS)) {
+    const buf = await ctx.decodeAudioData(await (await fetch(`audio/${clip}.wav`)).arrayBuffer());
+    const speech = buf.getChannelData(0);
+    const pre = 0.5, post = 0.9;
+    const audio = new Float32Array(Math.round((pre + post) * 16000) + speech.length);
+    for (let i = 0; i < audio.length; i++) audio[i] = (Math.random() * 2 - 1) * noise;
+    for (let i = 0; i < speech.length; i++) audio[i + pre * 16000] += speech[i];
+    const { texts, ms } = await transcribeClip({ audio, start: pre, end: pre + speech.length / 16000 });
+    const top = searchBest(texts).results[0]?.id ?? null;
+    const ok = want ? top === want : texts.some((t) => /next/i.test(t));
+    total++; if (ok) pass++;
+    log(`${ok ? 'ok  ' : 'FAIL'} noise ${noise} ${clip}: ${texts.map((t) => `"${t}"`).join(' / ') || '(nothing)'} → ${top} (${ms} ms)`);
+  }
+}
+log(`${pass}/${total} passed`);
+document.title = 'done';
+</script>
+</body>
+</html>

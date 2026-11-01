@@ -294,6 +294,11 @@ details.rules li + li { margin-top: 4px; }
   border: 1.5px solid var(--ink); display: inline-flex; align-items: center; gap: 6px;
 }
 .btn:active { background: var(--blue); }
+.btn.small { min-height: 40px; padding: 6px 14px; font-size: 15px; margin-top: 8px; }
+
+.vlog { margin-top: 18px; font-size: 14.5px; color: var(--ink-2); }
+.vlog summary { min-height: 40px; display: flex; align-items: center; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.vlog pre { margin: 6px 0 0; padding: 10px; border-radius: 10px; background: var(--blue); color: var(--ink); font-size: 12px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
 
 /* Weaker matches */
 .also-h { margin: 22px 2px 10px; }

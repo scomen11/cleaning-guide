@@ -16,6 +16,8 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } },
 };
 
+const BUILD = 7;  // shown in Settings → Voice log; bump along with VERSION in sw.js
+
 const ITEM_BY_ID = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -586,6 +588,7 @@ let autoRead = store.get('autoread', false);
 let idleSince = 0;
 let quickFails = 0;
 let listenTimer;
+let iosStuck = false;  // recognition went deaf this visit (iOS bug); the mic falls back to keyboard dictation
 let lastRec = null;  // the most recent recognizer, until it has fully ended
 let startToken = 0;
 let wakeLock = null;
@@ -596,6 +599,10 @@ function logVoice(msg) {
   const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   voiceLog.push(`${t} ${msg}`);
   if (voiceLog.length > 40) voiceLog.shift();
+}
+
+function voiceStateLine() {
+  return `build ${BUILD} voice=${voiceIn ? 'on' : 'off'} worked=${voiceWorked} stuck=${iosStuck} sr=${!!SR} ios=${isIOS} app=${standalone}`;
 }
 
 function setStatus(html, warn = false) {
@@ -662,15 +669,8 @@ function listen() {
   startSession();
 }
 
-// iOS: record-and-play while listening, then back to normal playback, so an answer read
-// aloud doesn't leave the audio session unable to record next time.
-function audioMode(type) {
-  try { if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type; } catch { /* unsupported */ }
-}
-
 function startSession() {
   startToken++;
-  audioMode('play-and-record');
   const r = new SR();
   rec = r;
   lastRec = r;
@@ -686,7 +686,8 @@ function startSession() {
   let quietTimer;
   const audio = [];
   const t0 = Date.now();
-  logVoice(`start${isIOS ? ' ios' : ''}${standalone ? ' app' : ''}${navigator.audioSession ? ` session=${navigator.audioSession.type}` : ''}`);
+  let deafTimer;
+  logVoice(`start${isIOS ? ' ios' : ''}${standalone ? ' app' : ''}`);
 
   // Ends the session exactly once, whichever comes first: a final result, the end
   // event, or one of the watchdogs below.
@@ -695,9 +696,9 @@ function startSession() {
     done = true;
     clearTimeout(startWatch);
     clearTimeout(quietTimer);
+    clearTimeout(deafTimer);
     if (rec === r) rec = null;
     setListening(false);
-    audioMode('auto');
     logVoice(`end ${why}${error ? ` error=${error}` : ''} audio=[${audio.join(',') || 'none'}]${heardAlts ? ` heard="${heardAlts[0]}"` : ''}`);
     if (r.cancelled) return;
     // iOS often never marks results final; what it heard is still the answer.
@@ -725,8 +726,18 @@ function startSession() {
   r.onstart = () => {
     started = true;
     clearTimeout(startWatch);
+    logVoice(`started after ${Date.now() - t0}ms`);
     setListening(true);
     armQuiet(9000);
+    // iOS bug: after the first voice search, later ones can start (mic light on) but
+    // never receive any sound until the app is relaunched. Spot it instead of waiting.
+    if (isIOS) {
+      deafTimer = setTimeout(() => {
+        if (heardAlts || audio.includes('sound') || audio.includes('speech')) return;
+        error = 'deaf';
+        endNow('deaf');
+      }, 5000);
+    }
     setStatus(handsFree ? `Listening… <span class="hint">${handsFreeHint()}</span>` : 'Listening…');
   };
   // Logged only: shows on a phone whether the mic delivered any sound at all.
@@ -761,6 +772,11 @@ function startSession() {
 }
 
 function voiceFailed(error, elapsed, started) {
+  if (error === 'deaf') {
+    iosStuck = true;
+    stopHandsFree();
+    return setStatus(`iPhone’s voice recognition stopped hearing — a known iOS bug.<span class="hint">Tap the mic to dictate with the keyboard’s 🎤 instead. Closing and reopening the app usually fixes it.</span><button type="button" class="btn small" data-retry>Try voice again</button>`, true);
+  }
   const blocked = error === 'not-allowed' || error === 'service-not-allowed';
   const noStart = error === 'start-timeout' || error?.startsWith?.('start-threw');
   if ((blocked || noStart) && !voiceWorked) {
@@ -962,6 +978,13 @@ micBtn.addEventListener('click', () => {
     return;
   }
   if (document.body.classList.contains('speaking')) stopSpeaking();
+  if (iosStuck) {
+    // Focusing inside the tap is what lets iOS open the keyboard.
+    input.focus();
+    input.select();
+    setStatus(`Tap the 🎤 at the bottom of the keyboard and say the item.<button type="button" class="btn small" data-retry>Try voice again</button>`);
+    return;
+  }
   listen();
 });
 
@@ -994,9 +1017,12 @@ readBtn.addEventListener('click', () => {
 });
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest('[data-speak],[data-expand],[data-section],[data-item],[data-back]');
+  const t = e.target.closest('[data-speak],[data-expand],[data-section],[data-item],[data-back],[data-retry]');
   if (!t) return;
-  if (t.dataset.speak != null) {
+  if (t.dataset.retry != null) {
+    iosStuck = false;
+    listen();
+  } else if (t.dataset.speak != null) {
     unlockTts();
     const r = current.results[+t.dataset.speak];
     if (!r) return;
@@ -1046,6 +1072,8 @@ function syncMenu() {
 
 $('#menu-btn').addEventListener('click', () => {
   syncMenu();
+  $('#build').textContent = `· build ${BUILD}`;
+  $('#vlog').textContent = [voiceStateLine(), ...voiceLog.slice(-25)].join('\n');
   menuEl.showModal();
   // So the back gesture closes the menu rather than leaving the page under it.
   history.pushState({ ...(history.state || {}), menu: true }, '');
@@ -1082,8 +1110,7 @@ $('.arch h1').addEventListener('click', () => {
   titleTaps = titleTaps.filter((t) => now - t < 3000).concat(now);
   if (titleTaps.length < 5) return;
   titleTaps = [];
-  const info = `voice=${voiceIn ? 'on' : 'off'} worked=${voiceWorked} sr=${!!SR} ios=${isIOS} app=${standalone}`;
-  setStatus(`<span class="hint" style="text-align:left;white-space:pre-wrap">${esc([info, ...voiceLog.slice(-15)].join('\n'))}</span>`);
+  setStatus(`<span class="hint" style="text-align:left;white-space:pre-wrap">${esc([voiceStateLine(), ...voiceLog.slice(-15)].join('\n'))}</span>`);
 });
 
 // ═════════════ Boot ═════════════

@@ -1,6 +1,6 @@
 // Offline-first: serve from cache instantly, refresh the cache in the background.
 // Bump VERSION when shipping changes so old caches are cleared.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CACHE = `cleaning-guide-${VERSION}`;
 const ASSETS = [
   './',

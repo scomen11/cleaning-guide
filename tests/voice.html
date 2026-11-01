@@ -14,23 +14,33 @@ window.__say = [];
 window.__spoken = [];
 window.__heard = [];
 
+// window.__mode imitates engine quirks:
+//   'final'   – normal (Android): a final result, then end
+//   'nofinal' – iOS-style: results never marked final, then end
+//   'hang'    – iOS-style: results never final and no end event at all
+//   'flaky'   – every other start is refused with not-allowed (after the first)
+window.__mode = new URLSearchParams(location.search).get('mode') || 'final';
+let starts = 0;
 class FakeRecognition {
   start() {
+    const n = starts++;
+    const mode = window.__mode;
     setTimeout(() => {
+      if (mode === 'flaky' && n % 2 === 1) { this.onerror?.({ error: 'not-allowed' }); this.onend?.(); return; }
       this.onstart?.();
       const alts = window.__say.shift();
       setTimeout(() => {
         if (!alts) { this.onerror?.({ error: 'no-speech' }); this.onend?.(); return; }
         window.__heard.push(alts[0]);
         const res = alts.map((t) => ({ transcript: t }));
-        res.isFinal = true;
+        res.isFinal = mode === 'final' || mode === 'flaky';
         this.onresult?.({ results: [res] });
-        this.onend?.();
+        if (mode !== 'hang') setTimeout(() => this.onend?.(), mode === 'nofinal' ? 300 : 0);
       }, 60);
     }, 20);
   }
-  abort() { this.onend?.(); }
-  stop() { this.onend?.(); }
+  abort() { if (window.__mode !== 'hang') this.onend?.(); }
+  stop() { if (window.__mode !== 'hang') this.onend?.(); }
 }
 // ?nosr simulates a browser with no voice recognition (e.g. an iPhone Home Screen app).
 if (location.search.includes('nosr')) delete window.webkitSpeechRecognition;

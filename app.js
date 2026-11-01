@@ -461,9 +461,10 @@ function speakNext(onDone) {
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
-const BROKEN_KEY = `voice-broken:${standalone ? 'app' : 'browser'}`;
-let voiceIn = !!SR && !store.get(BROKEN_KEY, false);
+// Remembered only when voice has never worked on this device/mode (a platform limit, not a hiccup).
+const BROKEN_KEY = `voice-broken-v2:${standalone ? 'app' : 'browser'}`;
 let voiceWorked = store.get('voice-worked', false);
+let voiceIn = !!SR && !(store.get(BROKEN_KEY, false) && !voiceWorked);
 let rec = null;
 let listening = false;
 let handsFree = false;
@@ -472,6 +473,14 @@ let idleSince = 0;
 let quickFails = 0;
 let listenTimer;
 let wakeLock = null;
+
+// Recent voice events, shown by tapping the "Clean Goose" title 5 times (for debugging on a phone).
+const voiceLog = [];
+function logVoice(msg) {
+  const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  voiceLog.push(`${t} ${msg}`);
+  if (voiceLog.length > 40) voiceLog.shift();
+}
 
 function setStatus(html, warn = false) {
   statusEl.hidden = !html;
@@ -520,7 +529,8 @@ function listen() {
     setStatus(dictationHint());
     return;
   }
-  if (listening) return;
+  // A previous session that never ended (iOS can hang silently) must not block this one.
+  if (rec) cancelRec(rec);
   stopSpeaking();
 
   const r = new SR();
@@ -531,73 +541,107 @@ function listen() {
   r.continuous = false;
 
   let started = false;
-  let final = false;
+  let done = false;
   let error = null;
+  let heardAlts = null;
+  let quietTimer;
   const t0 = Date.now();
+  logVoice(`start${isIOS ? ' ios' : ''}${standalone ? ' app' : ''}`);
+
+  // Ends the session exactly once, whichever comes first: a final result, the end
+  // event, or one of the watchdogs below.
+  const finish = (why) => {
+    if (done) return;
+    done = true;
+    clearTimeout(startWatch);
+    clearTimeout(quietTimer);
+    if (rec === r) rec = null;
+    setListening(false);
+    logVoice(`end ${why}${error ? ` error=${error}` : ''}${heardAlts ? ` heard="${heardAlts[0]}"` : ''}`);
+    if (r.cancelled) return;
+    // iOS often never marks results final; what it heard is still the answer.
+    if (heardAlts) { handleUtterance(heardAlts); return; }
+    voiceFailed(error, Date.now() - t0);
+  };
+  const stopAndFinish = (why) => {
+    try { r.stop(); } catch { /* already stopped */ }
+    finish(why);
+  };
 
   const startWatch = setTimeout(() => {
-    // Never started: on an iPhone Home Screen app that's the platform; elsewhere maybe a slow permission prompt.
-    if (!started && rec === r) {
-      r.abort?.();
-      if (!voiceWorked) voiceUnavailable(isIOS && standalone ? '' : 'Voice didn’t start.', isIOS && standalone);
-    }
+    if (started) return;
+    error = error || 'start-timeout';
+    try { r.abort(); } catch { /* ignore */ }
+    finish('no-start');
   }, 8000);
+  // After speech begins, a short silence means they're done talking.
+  const armQuiet = (ms) => {
+    clearTimeout(quietTimer);
+    quietTimer = setTimeout(() => stopAndFinish(heardAlts ? 'quiet' : 'silence'), ms);
+  };
 
   r.onstart = () => {
     started = true;
     clearTimeout(startWatch);
     setListening(true);
+    armQuiet(9000);
     setStatus(handsFree
       ? 'Listening… <span class="hint">Say an item, or “repeat”, “next”, “stop”</span>'
       : 'Listening…');
   };
   r.onresult = (e) => {
+    if (done) return;
     const res = e.results[e.results.length - 1];
     const heard = Array.from(e.results).map((x) => x[0].transcript).join(' ').trim();
-    if (!res.isFinal) {
-      setStatus(`<span class="heard">“${esc(heard)}”</span>`);
-      return;
-    }
-    final = true;
     const alts = Array.from(res).map((a) => a.transcript.trim()).filter(Boolean);
     if (e.results.length > 1) alts.unshift(heard);
-    handleUtterance(alts);
+    if (alts.length) heardAlts = alts;
+    if (res.isFinal) { stopAndFinish('final'); return; }
+    setStatus(`<span class="heard">“${esc(heard)}”</span>`);
+    armQuiet(2000);
   };
-  r.onerror = (e) => { error = e.error; };
-  r.onend = () => {
-    clearTimeout(startWatch);
-    if (rec === r) rec = null;
-    setListening(false);
-    if (final) return;
-    if (error === 'not-allowed' || error === 'service-not-allowed') {
-      if (error === 'service-not-allowed' || (isIOS && standalone)) return voiceUnavailable();
-      if (!voiceWorked) return voiceUnavailable(MIC_BLOCKED, false);
-      // Permission withdrawn mid-session, or a restart without a tap (iOS): pause hands-free.
-      stopHandsFree();
-      return setStatus('Tap the mic to keep going.');
-    }
-    if (error === 'network') { stopHandsFree(); return setStatus('Voice needs an internet connection.<span class="hint">Typing works offline.</span>', true); }
-    if (error === 'audio-capture') { stopHandsFree(); return setStatus('No microphone found.', true); }
-    if (handsFree) {
-      quickFails = Date.now() - t0 < 700 ? quickFails + 1 : 0;
-      if (quickFails > 3) { stopHandsFree(); return setStatus('Voice stopped responding. Tap the mic to try again.', true); }
-      return listenSoon(150);
-    }
-    setStatus('');
-  };
+  r.onerror = (e) => { error = e.error; logVoice(`error ${e.error}`); };
+  r.onend = () => finish('onend');
 
   try {
     r.start();
-  } catch {
-    clearTimeout(startWatch);
-    rec = null;
-    if (!voiceWorked) voiceUnavailable('', isIOS && standalone);
+  } catch (err) {
+    error = `start-threw ${err?.name || ''}`.trim();
+    finish('threw');
   }
+}
+
+function voiceFailed(error, elapsed) {
+  const blocked = error === 'not-allowed' || error === 'service-not-allowed';
+  const noStart = error === 'start-timeout' || error?.startsWith?.('start-threw');
+  if ((blocked || noStart) && !voiceWorked) {
+    // Has never worked here: on an iPhone Home Screen app (or a service refusal) that's the platform.
+    const platform = error === 'service-not-allowed' || (isIOS && standalone);
+    return voiceUnavailable(platform ? '' : blocked ? MIC_BLOCKED : 'Voice didn’t start.', platform);
+  }
+  if (blocked || noStart || error === 'audio-capture') {
+    // Worked before, so this is a hiccup (iOS sometimes refuses a restart): keep voice on.
+    stopHandsFree();
+    return setStatus('Voice didn’t start that time.<span class="hint">Tap the mic to try again.</span>');
+  }
+  if (error === 'network') { stopHandsFree(); return setStatus('Voice needs an internet connection.<span class="hint">Typing works offline.</span>', true); }
+  if (handsFree) {
+    quickFails = elapsed < 700 ? quickFails + 1 : 0;
+    if (quickFails > 3) { stopHandsFree(); return setStatus('Voice stopped responding. Tap the mic to try again.', true); }
+    return listenSoon(150);
+  }
+  setStatus('');
+}
+
+function cancelRec(r) {
+  r.cancelled = true;
+  try { r.abort(); } catch { /* ignore */ }
+  r.onend?.();
 }
 
 function stopListening() {
   clearTimeout(listenTimer);
-  rec?.abort?.();
+  if (rec) cancelRec(rec);
   rec = null;
   setListening(false);
 }
@@ -720,7 +764,7 @@ input.addEventListener('blur', () => { document.body.classList.remove('typing');
 window.visualViewport?.addEventListener('resize', updateTyping);
 
 micBtn.addEventListener('click', () => {
-  unlockTts();
+  if (autoRead || handsFree) unlockTts();
   if (listening) {
     stopListening();
     if (handsFree) stopHandsFree();
@@ -797,6 +841,16 @@ document.addEventListener('visibilitychange', () => {
     stopListening();
     stopSpeaking();
   }
+});
+
+let titleTaps = [];
+$('.arch h1').addEventListener('click', () => {
+  const now = Date.now();
+  titleTaps = titleTaps.filter((t) => now - t < 3000).concat(now);
+  if (titleTaps.length < 5) return;
+  titleTaps = [];
+  const info = `voice=${voiceIn ? 'on' : 'off'} worked=${voiceWorked} sr=${!!SR} ios=${isIOS} app=${standalone}`;
+  setStatus(`<span class="hint" style="text-align:left;white-space:pre-wrap">${esc([info, ...voiceLog.slice(-15)].join('\n'))}</span>`);
 });
 
 // ═════════════ Boot ═════════════
